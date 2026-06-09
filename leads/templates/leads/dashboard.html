@@ -59,18 +59,26 @@
                      data-id="{{ lead.id }}"
                      data-status="{{ lead.status }}"
                      data-handled="{{ lead.handled_by }}"
+                     data-potential="{{ lead.is_potential|lower }}"
                      data-name="{{ lead.name }}"
                      data-phone="{{ lead.phone }}"
                      data-messages='{{ lead.messages_json|safe }}'
                      onclick="selectLead(this)">
                     
                     <div class="lead-item-top">
-                        {% if lead.handled_by == 'ai' %}
-                            <span class="badge-handled badge-ai"><i class="fa-solid fa-robot"></i> IA</span>
-                        {% else %}
-                            <span class="badge-handled badge-human"><i class="fa-solid fa-user"></i> Humano</span>
-                        {% endif %}
-                        <span class="lead-time">{{ lead.last_interaction|date:"d/m H:i" }}</span>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            {% if lead.handled_by == 'ai' %}
+                                <span class="badge-handled badge-ai"><i class="fa-solid fa-robot"></i> IA</span>
+                            {% else %}
+                                <span class="badge-handled badge-human"><i class="fa-solid fa-user"></i> Humano</span>
+                            {% endif %}
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <span class="lead-time">{{ lead.last_interaction|date:"d/m H:i" }}</span>
+                            <button class="btn-star {% if lead.is_potential %}active{% endif %}" onclick="togglePotential({{ lead.id }}, event)" id="star-{{ lead.id }}" title="Marcar como Potencial">
+                                <i class="fa-solid fa-star"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="lead-name">{{ lead.name }}</div>
@@ -372,6 +380,32 @@
             });
         }
 
+        function togglePotential(leadId, event) {
+            event.stopPropagation(); // Não abrir chat ao clicar na estrela
+            const btn = document.getElementById(`star-${leadId}`);
+            
+            // Otimista
+            btn.classList.toggle('active');
+            
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch("{% url 'toggle_potential' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ lead_id: leadId })
+            }).then(r => r.json()).then(data => {
+                if(!data.success) {
+                    btn.classList.toggle('active'); // Reverte visual
+                    alert("Erro: " + data.error);
+                } else {
+                    const card = document.getElementById(`lead-${leadId}`);
+                    card.setAttribute('data-potential', data.is_potential);
+                }
+            });
+        }
+
         // Add Message Simulation
         function handleEnter(e) {
             if (e.key === 'Enter') simulateMessage('out');
@@ -492,11 +526,20 @@
                             // Check if status or handled_by changed outside
                             const oldStatus = card.getAttribute('data-status');
                             const oldHandled = card.getAttribute('data-handled');
+                            const oldPotential = card.getAttribute('data-potential') === 'true';
                             
-                            if (oldStatus !== l.status || oldHandled !== l.handled_by) {
+                            if (oldStatus !== l.status || oldHandled !== l.handled_by || oldPotential !== l.is_potential) {
                                 card.setAttribute('data-status', l.status);
                                 card.setAttribute('data-handled', l.handled_by);
+                                card.setAttribute('data-potential', l.is_potential);
                                 needsFilter = true;
+                                
+                                // Update star visually
+                                const starBtn = document.getElementById(`star-${l.id}`);
+                                if(starBtn) {
+                                    if(l.is_potential) starBtn.classList.add('active');
+                                    else starBtn.classList.remove('active');
+                                }
                                 
                                 // Update badges visually
                                 const topDiv = card.querySelector('.lead-item-top');

@@ -405,3 +405,27 @@ select.form-control option {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 10px; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+
+/* Botão Estrela (Favorito) */
+.btn-star {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    opacity: 0.5;
+    padding: 0.2rem;
+}
+
+.btn-star:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+}
+
+.btn-star.active {
+    color: #F59E0B; /* Dourado */
+    opacity: 1;
+    transform: scale(1.15);
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}

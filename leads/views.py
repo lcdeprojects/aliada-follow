@@ -89,6 +89,28 @@ def update_lead_status(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
+@require_POST
+def toggle_potential(request):
+    try:
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        lead_id = data.get('lead_id')
+        if not lead_id:
+            return JsonResponse({'success': False, 'error': 'ID do lead ausente.'}, status=400)
+            
+        lead = Lead.objects.get(id=lead_id)
+        lead.is_potential = not lead.is_potential
+        lead.save()
+        
+        return JsonResponse({'success': True, 'is_potential': lead.is_potential})
+    except Lead.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Lead não encontrado.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 
 def add_lead(request):
     try:
@@ -321,6 +343,7 @@ def active_leads_json(request):
             'id': lead.id,
             'status': lead.status,
             'handled_by': lead.handled_by,
+            'is_potential': lead.is_potential,
             'last_preview': last_msg.content if last_msg else '',
             'last_direction': last_msg.direction if last_msg else '',
             'messages': json.loads(lead.messages_json()),
