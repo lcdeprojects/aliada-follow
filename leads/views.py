@@ -226,10 +226,16 @@ def chatwoot_webhook(request):
             
             conversation_id = conversation.get('id')
             
-            # Tentar achar o telefone do remetente ou da conversa
-            phone_number = sender.get('phone_number')
-            if not phone_number and conversation.get('meta') and conversation['meta'].get('sender'):
-                phone_number = conversation['meta']['sender'].get('phone_number')
+            # O contato real da conversa sempre está no meta.sender (evita pegar o nome do atendente em msgs outgoing)
+            contact = conversation.get('meta', {}).get('sender', {})
+            
+            phone_number = contact.get('phone_number')
+            contact_name = contact.get('name')
+            
+            # Fallback caso não venha no meta
+            if not phone_number:
+                phone_number = sender.get('phone_number')
+                contact_name = sender.get('name')
                 
             if not phone_number:
                 return JsonResponse({'success': True, 'msg': 'Sem telefone ignorado'})
@@ -239,10 +245,13 @@ def chatwoot_webhook(request):
             if not clean_phone:
                 return JsonResponse({'success': True})
                 
+            # Definir nome final
+            final_name = contact_name if contact_name else f'Contato {clean_phone}'
+                
             # Buscar ou criar Lead
             lead, created = Lead.objects.get_or_create(
                 phone__endswith=clean_phone[-10:], # Busca aproximada caso venha com DDI
-                defaults={'name': sender.get('name', f'Contato {clean_phone}'), 'phone': clean_phone}
+                defaults={'name': final_name, 'phone': clean_phone}
             )
             
             # Atualizar IDs do Chatwoot no Lead
