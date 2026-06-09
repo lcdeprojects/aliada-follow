@@ -4,99 +4,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Leads - Clínica Médica</title>
-    <link rel="stylesheet" href="{% static 'leads/css/style.css' %}">
+    <title>CRM Inbox - Clínica Médica</title>
+    <link rel="stylesheet" href="{% static 'leads/css/style.css' %}?v=3-{{ request.resolver_match.view_name }}-{% now 'U' %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
     <header>
-        <h1><i class="fa-solid fa-house-medical"></i> Aliada Clínica — Gestão de Leads</h1>
+        <h1><i class="fa-solid fa-inbox"></i> Aliada Clínica — CRM Inbox</h1>
         <button class="btn-primary" onclick="openModal('addLeadModal')">
             <i class="fa-solid fa-plus"></i> Novo Paciente
         </button>
     </header>
 
-    <main class="board">
-        <!-- Coluna: Em Atendimento -->
-        <div class="column col-atendimento" data-status="atendimento" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
-            <div class="column-header">
-                <div class="column-title-wrapper">
-                    <span class="column-dot"></span>
-                    <span class="column-title">Em Atendimento</span>
-                </div>
-                <span class="column-count" id="count-atendimento">{{ counts.atendimento }}</span>
-            </div>
-            <div class="lead-list" id="list-atendimento">
-                {% for lead in grouped_leads.atendimento %}
-                    {% include 'leads/includes/lead_card.html' with lead=lead %}
-                {% endfor %}
-            </div>
-        </div>
+    <main class="crm-container">
+        
+        <!-- Painel 1: Sidebar de Filtros -->
+        <aside class="crm-sidebar">
+            <h3>Caixas de Entrada</h3>
+            <ul class="filter-list">
+                <li class="filter-item active" data-filter="handled_by" data-value="human">
+                    <i class="fa-solid fa-user"></i> Fila Humano
+                    <span class="badge">{{ count_human }}</span>
+                </li>
+                <li class="filter-item" data-filter="handled_by" data-value="ai">
+                    <i class="fa-solid fa-robot"></i> Atendimento IA
+                    <span class="badge">{{ count_ai }}</span>
+                </li>
+                <li class="filter-item" data-filter="all" data-value="all">
+                    <i class="fa-solid fa-layer-group"></i> Todos os Leads
+                    <span class="badge">{{ count_total }}</span>
+                </li>
+            </ul>
 
-        <!-- Coluna: Aguardando Decisão -->
-        <div class="column col-aguardando_decisao" data-status="aguardando_decisao" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
-            <div class="column-header">
-                <div class="column-title-wrapper">
-                    <span class="column-dot"></span>
-                    <span class="column-title">Aguardando Decisão</span>
-                </div>
-                <span class="column-count" id="count-aguardando_decisao">{{ counts.aguardando_decisao }}</span>
-            </div>
-            <div class="lead-list" id="list-aguardando_decisao">
-                {% for lead in grouped_leads.aguardando_decisao %}
-                    {% include 'leads/includes/lead_card.html' with lead=lead %}
+            <h3 style="margin-top: 2rem;">Filtro de Status</h3>
+            <ul class="filter-list">
+                {% for val, label in status_choices %}
+                <li class="filter-item" data-filter="status" data-value="{{ val }}">
+                    <span class="status-dot dot-{{ val }}"></span> {{ label }}
+                </li>
                 {% endfor %}
-            </div>
-        </div>
+            </ul>
+        </aside>
 
-        <!-- Coluna: Agendado -->
-        <div class="column col-agendado" data-status="agendado" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
-            <div class="column-header">
-                <div class="column-title-wrapper">
-                    <span class="column-dot"></span>
-                    <span class="column-title">Agendado</span>
+        <!-- Painel 2: Lista Central de Leads -->
+        <section class="crm-list">
+            <div class="list-header">
+                <h2 id="current-filter-title">Fila Humano</h2>
+            </div>
+            <div class="leads-scroll" id="leads-container">
+                {% for lead in leads %}
+                <div class="lead-item" 
+                     id="lead-{{ lead.id }}"
+                     data-id="{{ lead.id }}"
+                     data-status="{{ lead.status }}"
+                     data-handled="{{ lead.handled_by }}"
+                     data-name="{{ lead.name }}"
+                     data-phone="{{ lead.phone }}"
+                     data-messages='{{ lead.messages_json|safe }}'
+                     onclick="selectLead(this)">
+                    
+                    <div class="lead-item-top">
+                        {% if lead.handled_by == 'ai' %}
+                            <span class="badge-handled badge-ai"><i class="fa-solid fa-robot"></i> IA</span>
+                        {% else %}
+                            <span class="badge-handled badge-human"><i class="fa-solid fa-user"></i> Humano</span>
+                        {% endif %}
+                        <span class="lead-time">{{ lead.last_interaction|date:"d/m H:i" }}</span>
+                    </div>
+                    
+                    <div class="lead-name">{{ lead.name }}</div>
+                    <div class="lead-phone"><i class="fa-brands fa-whatsapp"></i> {{ lead.phone }}</div>
+                    
+                    {% if lead.last_message %}
+                    <div class="lead-preview">
+                        {{ lead.last_message.content }}
+                    </div>
+                    {% endif %}
                 </div>
-                <span class="column-count" id="count-agendado">{{ counts.agendado }}</span>
-            </div>
-            <div class="lead-list" id="list-agendado">
-                {% for lead in grouped_leads.agendado %}
-                    {% include 'leads/includes/lead_card.html' with lead=lead %}
                 {% endfor %}
+                
+                <div id="no-leads-msg" style="display: none; text-align: center; color: var(--text-secondary); margin-top: 2rem;">
+                    Nenhum paciente nesta lista.
+                </div>
             </div>
-        </div>
+        </section>
 
-        <!-- Coluna: Perdido -->
-        <div class="column col-perdido" data-status="perdido" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
-            <div class="column-header">
-                <div class="column-title-wrapper">
-                    <span class="column-dot"></span>
-                    <span class="column-title">Perdido</span>
+        <!-- Painel 3: Painel Direito (Chat e Detalhes) -->
+        <section class="crm-chat">
+            <div id="empty-chat-state" class="empty-state">
+                <i class="fa-regular fa-comments"></i>
+                <p>Selecione um paciente para ver a conversa e gerenciar o atendimento.</p>
+            </div>
+            
+            <div id="active-chat-state" style="display: none; height: 100%; flex-direction: column;">
+                <div class="chat-header">
+                    <div class="chat-header-info">
+                        <h2 id="chat-lead-name">Nome</h2>
+                        <span id="chat-lead-phone"><i class="fa-brands fa-whatsapp"></i> Telefone</span>
+                    </div>
+                    <div class="chat-header-actions">
+                        <select id="chat-status-select" class="form-control" style="width: auto; padding: 0.4rem 1rem;" onchange="changeStatus()">
+                            {% for val, label in status_choices %}
+                                <option value="{{ val }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <button id="btn-assume" class="btn-primary" onclick="assumeChat()">
+                            <i class="fa-solid fa-hand-paper"></i> Assumir Conversa
+                        </button>
+                    </div>
                 </div>
-                <span class="column-count" id="count-perdido">{{ counts.perdido }}</span>
+                
+                <div class="chat-history" id="chat-history-container">
+                    <!-- Mensagens carregadas via JS -->
+                </div>
+                
+                <div class="chat-input-area">
+                    <input type="hidden" id="active-lead-id">
+                    <input type="text" id="chat-input" class="form-control" placeholder="Digite uma mensagem para simular o envio..." onkeypress="handleEnter(event)">
+                    <button class="btn-primary" style="background: rgba(255,255,255,0.05); box-shadow: none;" onclick="simulateMessage('in')" title="Simular Recebimento"><i class="fa-solid fa-arrow-down"></i></button>
+                    <button class="btn-primary" onclick="simulateMessage('out')"><i class="fa-solid fa-paper-plane"></i> Enviar</button>
+                </div>
             </div>
-            <div class="lead-list" id="list-perdido">
-                {% for lead in grouped_leads.perdido %}
-                    {% include 'leads/includes/lead_card.html' with lead=lead %}
-                {% endfor %}
-            </div>
-        </div>
+        </section>
 
-        <!-- Coluna: Reativação -->
-        <div class="column col-reativacao" data-status="reativacao" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
-            <div class="column-header">
-                <div class="column-title-wrapper">
-                    <span class="column-dot"></span>
-                    <span class="column-title">Reativação</span>
-                </div>
-                <span class="column-count" id="count-reativacao">{{ counts.reativacao }}</span>
-            </div>
-            <div class="lead-list" id="list-reativacao">
-                {% for lead in grouped_leads.reativacao %}
-                    {% include 'leads/includes/lead_card.html' with lead=lead %}
-                {% endfor %}
-            </div>
-        </div>
     </main>
 
     <!-- Modal: Adicionar Paciente -->
@@ -124,6 +155,13 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="handled_by">Atendimento</label>
+                    <select id="handled_by" name="handled_by" class="form-control">
+                        <option value="human" selected>Atendente Humano</option>
+                        <option value="ai">Inteligência Artificial</option>
+                    </select>
+                </div>
                 <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
                     <button type="button" class="btn-primary" style="background: rgba(255,255,255,0.05); color: var(--text-secondary); box-shadow: none;" onclick="closeModal('addLeadModal')">Cancelar</button>
                     <button type="submit" class="btn-primary">Salvar Paciente</button>
@@ -132,326 +170,210 @@
         </div>
     </div>
 
-    <!-- Modal: Detalhes do Lead & Histórico de Mensagens -->
-    <div id="leadDetailModal" class="modal">
-        <div class="modal-content" style="max-width: 650px;">
-            <div class="modal-header">
-                <div>
-                    <h3 class="modal-title" id="modal-lead-name">Nome do Paciente</h3>
-                    <p id="modal-lead-phone" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.2rem;"><i class="fa-solid fa-phone"></i> 11999998888</p>
-                </div>
-                <button class="close-btn" onclick="closeModal('leadDetailModal')">&times;</button>
-            </div>
-            
-            <div style="margin-bottom: 1.5rem;">
-                <button class="btn-primary" style="background: rgba(194, 31, 31, 0.7); color: var(--text-secondary); box-shadow: none;" id="modal-delete-btn">Excluir Lead</button>
-                <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-secondary);">Histórico de Mensagens</h4>
-                <div id="modal-chat-history" style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 1rem; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem;">
-                    <!-- Preenchido via JS -->
-                </div>
-                
-                <!-- Simulador de Mensagens -->
-                <div style="display: flex; gap: 0.5rem; margin-top: 1rem; align-items: stretch;">
-                    <input type="text" id="modal-chat-input" class="form-control" style="flex: 1;" placeholder="Digite uma mensagem para simular...">
-                    <button class="btn-primary" style="background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.1); box-shadow: none; white-space: nowrap; padding: 0.5rem 1rem;" onclick="simulateMessage('in')"><i class="fa-solid fa-arrow-down"></i> Receber</button>
-                    <button class="btn-primary" style="white-space: nowrap; padding: 0.5rem 1rem;" onclick="simulateMessage('out')"><i class="fa-solid fa-paper-plane"></i> Enviar</button>
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end;">
-                <button class="btn-primary" style="background: rgba(255,255,255,0.05); color: var(--text-primary); box-shadow: none;" onclick="closeModal('leadDetailModal')">Fechar</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- CSRF Token helper for JS -->
     {% csrf_token %}
 
     <script>
-        // CSRF Token Helper
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
-        }
-
-        // Modal Helpers
+        // Modal logic
         function openModal(modalId) {
             document.getElementById(modalId).classList.add('show');
         }
-
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('show');
         }
 
-        // HTML5 Drag & Drop Logic
-        function dragStart(event) {
-            event.dataTransfer.setData("text/plain", event.target.id);
-            event.target.classList.add("dragging");
-        }
+        // State
+        let activeFilter = { type: 'handled_by', value: 'human' };
+        let activeLeadId = null;
 
-        function dragEnd(event) {
-            event.target.classList.remove("dragging");
-        }
-
-        function allowDrop(event) {
-            event.preventDefault();
-        }
-
-        function dragEnter(event) {
-            event.preventDefault();
-            const column = event.target.closest('.column');
-            if (column) column.classList.add('dragover');
-        }
-
-        function dragLeave(event) {
-            const column = event.target.closest('.column');
-            if (column && !column.contains(event.relatedTarget)) {
-                column.classList.remove('dragover');
-            }
-        }
-
-        function drop(event) {
-            event.preventDefault();
-            const column = event.target.closest('.column');
-            if (!column) return;
+        // Apply filters
+        function applyFilter() {
+            const items = document.querySelectorAll('.lead-item');
+            let visibleCount = 0;
             
-            column.classList.remove('dragover');
-            
-            const cardId = event.dataTransfer.getData("text/plain");
-            const card = document.getElementById(cardId);
-            if (!card) return;
-            
-            const list = column.querySelector('.lead-list');
-            const newStatus = column.getAttribute('data-status');
-            const leadId = card.getAttribute('data-id');
-            const oldStatus = card.getAttribute('data-status');
-            
-            if (oldStatus !== newStatus) {
-                // Instantly move DOM node (optimistic UI)
-                list.appendChild(card);
-                card.setAttribute('data-status', newStatus);
-                
-                // Update dropdown value if visible
-                const select = card.querySelector('.select-sm');
-                if (select) select.value = newStatus;
-                
-                // Recalculate counts
-                updateCounts();
-                
-                // Call API
-                updateLeadStatusOnServer(leadId, newStatus, card, oldStatus);
-            }
-        }
-
-        // Dropdown select change handler (accessibility fallback)
-        function changeStatusSelect(selectElement) {
-            const card = selectElement.closest('.lead-card');
-            const leadId = card.getAttribute('data-id');
-            const oldStatus = card.getAttribute('data-status');
-            const newStatus = selectElement.value;
-            
-            if (oldStatus !== newStatus) {
-                const targetList = document.getElementById(`list-${newStatus}`);
-                if (targetList) {
-                    targetList.appendChild(card);
-                    card.setAttribute('data-status', newStatus);
-                    updateCounts();
-                    updateLeadStatusOnServer(leadId, newStatus, card, oldStatus);
+            items.forEach(item => {
+                let show = false;
+                if (activeFilter.type === 'all') {
+                    show = true;
+                } else if (activeFilter.type === 'handled_by') {
+                    show = item.getAttribute('data-handled') === activeFilter.value;
+                } else if (activeFilter.type === 'status') {
+                    show = item.getAttribute('data-status') === activeFilter.value;
                 }
-            }
-        }
-
-        function updateCounts() {
-            document.querySelectorAll('.column').forEach(column => {
-                const status = column.getAttribute('data-status');
-                const count = column.querySelectorAll('.lead-card').length;
-                document.getElementById(`count-${status}`).innerText = count;
+                
+                if (show) {
+                    item.style.display = 'block';
+                    visibleCount++;
+                } else {
+                    item.style.display = 'none';
+                }
             });
+            
+            const msg = document.getElementById('no-leads-msg');
+            msg.style.display = visibleCount === 0 ? 'block' : 'none';
         }
 
-        function updateLeadStatusOnServer(leadId, newStatus, card, oldStatus) {
-            // Get CSRF token directly from the hidden input rendered on the page
+        // Sidebar click handlers
+        document.querySelectorAll('.filter-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.querySelectorAll('.filter-item').forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+                
+                activeFilter.type = this.getAttribute('data-filter');
+                activeFilter.value = this.getAttribute('data-value');
+                
+                document.getElementById('current-filter-title').innerText = this.innerText.replace(/[0-9]+$/, '').trim();
+                applyFilter();
+            });
+        });
+
+        // Select a lead
+        function selectLead(element) {
+            document.querySelectorAll('.lead-item').forEach(i => i.classList.remove('selected'));
+            element.classList.add('selected');
+            
+            activeLeadId = element.getAttribute('data-id');
+            const name = element.getAttribute('data-name');
+            const phone = element.getAttribute('data-phone');
+            const handledBy = element.getAttribute('data-handled');
+            const status = element.getAttribute('data-status');
+            const messages = JSON.parse(element.getAttribute('data-messages') || "[]");
+            
+            // Show right pane
+            document.getElementById('empty-chat-state').style.display = 'none';
+            document.getElementById('active-chat-state').style.display = 'flex';
+            
+            // Populate header
+            document.getElementById('chat-lead-name').innerText = name;
+            document.getElementById('chat-lead-phone').innerHTML = `<i class="fa-brands fa-whatsapp"></i> ${phone}`;
+            document.getElementById('chat-status-select').value = status;
+            document.getElementById('active-lead-id').value = activeLeadId;
+            
+            // Button assume logic
+            const btnAssume = document.getElementById('btn-assume');
+            if (handledBy === 'ai') {
+                btnAssume.style.display = 'flex';
+                btnAssume.innerHTML = '<i class="fa-solid fa-hand-paper"></i> Assumir Conversa';
+                btnAssume.style.background = 'linear-gradient(135deg, var(--color-reativacao), #0891B2)';
+            } else {
+                btnAssume.style.display = 'flex';
+                btnAssume.innerHTML = '<i class="fa-solid fa-robot"></i> Devolver para IA';
+                btnAssume.style.background = 'rgba(255,255,255,0.1)';
+            }
+            
+            // Render Chat
+            renderChatHistory(messages);
+        }
+
+        function renderChatHistory(messages) {
+            const container = document.getElementById('chat-history-container');
+            container.innerHTML = '';
+            
+            if (messages.length === 0) {
+                container.innerHTML = '<p style="text-align:center; color:var(--text-secondary); margin-top:2rem;">Nenhuma mensagem registrada.</p>';
+                return;
+            }
+            
+            messages.forEach(msg => {
+                const isOut = msg.direction === 'out';
+                const bubble = document.createElement('div');
+                bubble.className = isOut ? 'chat-bubble chat-out' : 'chat-bubble chat-in';
+                
+                bubble.innerHTML = `
+                    <div class="chat-text">${msg.content}</div>
+                    <div class="chat-time">${msg.created_at}</div>
+                `;
+                container.appendChild(bubble);
+            });
+            
+            setTimeout(() => {
+                container.scrollTop = container.scrollHeight;
+            }, 50);
+        }
+
+        // Change Status or Handled By
+        function updateServer(payload) {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             
-            fetch("{% url 'update_lead_status' %}", {
+            return fetch("{% url 'update_lead_status' %}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrfToken
                 },
-                body: JSON.stringify({
-                    lead_id: leadId,
-                    status: newStatus
-                })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("Erro HTTP " + response.status);
-                }
-                return response.json();
-            })
+                body: JSON.stringify(payload)
+            }).then(r => r.json());
+        }
+
+        function changeStatus() {
+            if (!activeLeadId) return;
+            const newStatus = document.getElementById('chat-status-select').value;
+            
+            // Optimistic Update
+            const card = document.getElementById(`lead-${activeLeadId}`);
+            card.setAttribute('data-status', newStatus);
+            applyFilter();
+            
+            updateServer({ lead_id: activeLeadId, status: newStatus })
             .then(data => {
-                if (!data.success) {
-                    // Rollback if failure
-                    alert("Erro ao salvar alteração: " + (data.error || "Erro desconhecido"));
-                    rollbackCard(card, oldStatus);
+                if(!data.success) {
+                    alert("Erro ao alterar status");
+                    window.location.reload(); // fallback em caso de erro
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert("Erro ao alterar o status (verifique as credenciais ou permissões).");
-                rollbackCard(card, oldStatus);
             });
         }
 
-        function rollbackCard(card, oldStatus) {
-            const targetList = document.getElementById(`list-${oldStatus}`);
-            if (targetList) {
-                targetList.appendChild(card);
-                card.setAttribute('data-status', oldStatus);
-                const select = card.querySelector('.select-sm');
-                if (select) select.value = oldStatus;
-                updateCounts();
-            }
-        }
-
-        function deleteLead(leadId) {
-            if (!confirm("Tem certeza que deseja arquivar este paciente?")) {
-                return;
-            }
+        function assumeChat() {
+            if (!activeLeadId) return;
+            const card = document.getElementById(`lead-${activeLeadId}`);
+            const currentHandled = card.getAttribute('data-handled');
+            const newHandled = currentHandled === 'ai' ? 'human' : 'ai';
             
-            // Get CSRF token
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            // Optimistic Update: Card data
+            card.setAttribute('data-handled', newHandled);
             
-            fetch(`/leads/delete/${leadId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken
-                }
-            })
-            .then(response => {
-                if (!response.ok) throw new Error("Erro HTTP " + response.status);
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    // Remove the card from DOM
-                    const card = document.querySelector(`.lead-card[data-id="${leadId}"]`);
-                    if (card) {
-                        card.remove();
-                        updateCounts();
-                    }
-                    closeModal('leadDetailModal');
-                } else {
-                    alert("Erro ao arquivar: " + (data.error || "Erro desconhecido"));
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert("Erro ao se conectar com o servidor.");
-            });
-        }
-
-        // Show Lead Details and Messages
-        function showLeadDetails(cardElement, event) {
-            // Prevent triggering modal when clicking the dropdown
-            if (event.target.tagName === 'SELECT' || event.target.tagName === 'OPTION') {
-                return;
-            }
-
-            const name = cardElement.querySelector('.lead-name').innerText;
-            const phone = cardElement.querySelector('.lead-phone').innerText.trim();
-            const rawMessages = cardElement.getAttribute('data-messages');
-            const leadId = cardElement.getAttribute('data-id');
-            
-            document.getElementById('modal-lead-name').innerText = name;
-            document.getElementById('modal-lead-phone').innerHTML = `<i class="fa-solid fa-phone"></i> ${phone}`;
-            document.getElementById('modal-delete-btn').setAttribute('onclick', `deleteLead(${leadId})`);
-            
-            const chatHistoryContainer = document.getElementById('modal-chat-history');
-            chatHistoryContainer.innerHTML = '';
-            
-            try {
-                const messages = JSON.parse(rawMessages);
-                if (messages && messages.length > 0) {
-                    messages.forEach(msg => {
-                        const bubble = document.createElement('div');
-                        const isOut = msg.direction === 'out';
-                        
-                        appendMessageBubble(msg, chatHistoryContainer);
-                    });
-                } else {
-                    chatHistoryContainer.innerHTML = '<p id="no-msg-text" style="color: var(--text-secondary); text-align: center; font-size: 0.85rem; padding: 1rem;">Nenhuma mensagem registrada para este lead.</p>';
-                }
-            } catch (e) {
-                console.error(e);
-                chatHistoryContainer.innerHTML = '<p id="no-msg-text" style="color: var(--text-secondary); text-align: center; font-size: 0.85rem; padding: 1rem;">Sem histórico de mensagens.</p>';
-            }
-            
-            openModal('leadDetailModal');
-            
-            // Auto scroll to bottom
-            setTimeout(() => {
-                chatHistoryContainer.scrollTop = chatHistoryContainer.scrollHeight;
-            }, 50);
-        }
-
-        function appendMessageBubble(msg, container) {
-            const isOut = msg.direction === 'out';
-            
-            const bubble = document.createElement('div');
-            bubble.style.padding = '0.75rem 1rem';
-            bubble.style.borderRadius = '12px';
-            bubble.style.maxWidth = '80%';
-            bubble.style.fontSize = '0.85rem';
-            bubble.style.lineHeight = '1.4';
-            
-            if (isOut) {
-                bubble.style.alignSelf = 'flex-end';
-                bubble.style.backgroundColor = 'rgba(6, 182, 212, 0.2)';
-                bubble.style.border = '1px solid rgba(6, 182, 212, 0.3)';
-                bubble.style.color = '#FFF';
+            // Update Card Badge
+            const topDiv = card.querySelector('.lead-item-top');
+            const timeSpan = topDiv.querySelector('.lead-time').outerHTML;
+            if(newHandled === 'ai') {
+                topDiv.innerHTML = `<span class="badge-handled badge-ai"><i class="fa-solid fa-robot"></i> IA</span> ${timeSpan}`;
             } else {
-                bubble.style.alignSelf = 'flex-start';
-                bubble.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                bubble.style.border = '1px solid rgba(255, 255, 255, 0.08)';
-                bubble.style.color = '#E5E7EB';
+                topDiv.innerHTML = `<span class="badge-handled badge-human"><i class="fa-solid fa-user"></i> Humano</span> ${timeSpan}`;
             }
             
-            const text = document.createElement('div');
-            text.innerText = msg.content;
+            // Update Sidebar Badges
+            const humanBadge = document.querySelector('.filter-item[data-value="human"] .badge');
+            const aiBadge = document.querySelector('.filter-item[data-value="ai"] .badge');
+            if (newHandled === 'human') {
+                humanBadge.innerText = parseInt(humanBadge.innerText) + 1;
+                aiBadge.innerText = Math.max(0, parseInt(aiBadge.innerText) - 1);
+            } else {
+                aiBadge.innerText = parseInt(aiBadge.innerText) + 1;
+                humanBadge.innerText = Math.max(0, parseInt(humanBadge.innerText) - 1);
+            }
             
-            const time = document.createElement('div');
-            time.innerText = msg.created_at;
-            time.style.fontSize = '0.7rem';
-            time.style.color = 'var(--text-secondary)';
-            time.style.marginTop = '0.35rem';
-            time.style.textAlign = isOut ? 'right' : 'left';
+            // Re-apply filter and refresh right pane button
+            selectLead(card);
+            applyFilter();
             
-            bubble.appendChild(text);
-            bubble.appendChild(time);
-            container.appendChild(bubble);
+            updateServer({ lead_id: activeLeadId, handled_by: newHandled })
+            .then(data => {
+                if(!data.success) {
+                    alert("Erro ao assumir conversa");
+                    window.location.reload(); // fallback em caso de erro
+                }
+            });
+        }
+
+        // Add Message Simulation
+        function handleEnter(e) {
+            if (e.key === 'Enter') simulateMessage('out');
         }
 
         function simulateMessage(direction) {
-            const input = document.getElementById('modal-chat-input');
+            if (!activeLeadId) return;
+            const input = document.getElementById('chat-input');
             const content = input.value.trim();
             if (!content) return;
-            
-            const deleteBtnAttr = document.getElementById('modal-delete-btn').getAttribute('onclick');
-            const match = deleteBtnAttr ? deleteBtnAttr.match(/\d+/) : null;
-            if (!match) return;
-            const leadId = match[0];
             
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             
@@ -462,7 +384,7 @@
                     'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({
-                    lead_id: leadId,
+                    lead_id: activeLeadId,
                     content: content,
                     direction: direction
                 })
@@ -471,59 +393,81 @@
             .then(data => {
                 if (data.success) {
                     input.value = '';
-                    const container = document.getElementById('modal-chat-history');
-                    const noMsg = document.getElementById('no-msg-text');
-                    if (noMsg) noMsg.remove();
+                    const card = document.getElementById(`lead-${activeLeadId}`);
+                    let msgs = JSON.parse(card.getAttribute('data-messages') || "[]");
+                    msgs.push(data.message);
+                    card.setAttribute('data-messages', JSON.stringify(msgs));
                     
-                    appendMessageBubble(data.message, container);
+                    // Update preview
+                    const preview = card.querySelector('.lead-preview');
+                    if(preview) preview.innerText = data.message.content;
                     
-                    setTimeout(() => {
-                        container.scrollTop = container.scrollHeight;
-                    }, 50);
-                    
-                    // Update data-messages array in the DOM
-                    const card = document.querySelector(`.lead-card[data-id="${leadId}"]`);
-                    if (card) {
-                        let msgs = [];
-                        try {
-                            msgs = JSON.parse(card.getAttribute('data-messages') || "[]");
-                        } catch(e) {}
-                        msgs.push(data.message);
-                        card.setAttribute('data-messages', JSON.stringify(msgs));
-                    }
+                    renderChatHistory(msgs);
                 } else {
                     alert("Erro: " + data.error);
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert("Erro ao enviar mensagem.");
             });
         }
 
-        // Auto-refresh the Kanban board dynamically every 30 seconds without full page reload
-        setInterval(() => {
-            // Do not refresh if the secretary is currently using any modal (adding a lead or viewing history)
-            if (document.querySelector('.modal.show')) {
-                return;
-            }
-            
-            fetch(window.location.href)
-                .then(response => {
-                    if (response.ok) return response.text();
-                    throw new Error('Falha no polling de atualização');
-                })
-                .then(html => {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    const newBoard = doc.querySelector('.board');
-                    if (newBoard) {
-                        document.querySelector('.board').innerHTML = newBoard.innerHTML;
-                        updateCounts();
+        // Drag and Drop Logic
+        function initDragAndDrop() {
+            // Make leads draggable
+            document.querySelectorAll('.lead-item').forEach(item => {
+                item.setAttribute('draggable', 'true');
+                item.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', this.getAttribute('data-id'));
+                    this.style.opacity = '0.5';
+                });
+                item.addEventListener('dragend', function(e) {
+                    this.style.opacity = '1';
+                });
+            });
+
+            // Make status filters drop zones
+            document.querySelectorAll('.filter-item').forEach(item => {
+                item.addEventListener('dragover', function(e) {
+                    if (this.getAttribute('data-filter') === 'status') {
+                        e.preventDefault(); // Necessary to allow dropping
+                        this.style.background = 'rgba(6, 182, 212, 0.3)';
                     }
-                })
-                .catch(err => console.warn('Aviso de auto-atualização silencioso:', err));
-        }, 30000);
+                });
+                item.addEventListener('dragleave', function(e) {
+                    if (this.getAttribute('data-filter') === 'status') {
+                        this.style.background = '';
+                    }
+                });
+                item.addEventListener('drop', function(e) {
+                    if (this.getAttribute('data-filter') === 'status') {
+                        e.preventDefault();
+                        this.style.background = '';
+                        
+                        const leadId = e.dataTransfer.getData('text/plain');
+                        const newStatus = this.getAttribute('data-value');
+                        
+                        if (leadId && newStatus) {
+                            // Optimistic Update
+                            const card = document.getElementById(`lead-${leadId}`);
+                            card.setAttribute('data-status', newStatus);
+                            applyFilter();
+                            
+                            updateServer({ lead_id: leadId, status: newStatus })
+                            .then(data => {
+                                if(!data.success) {
+                                    alert("Erro ao alterar status");
+                                    window.location.reload(); // fallback
+                                }
+                            });
+                        }
+                    }
+                });
+            });
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            applyFilter();
+            initDragAndDrop();
+        });
     </script>
 </body>
 </html>

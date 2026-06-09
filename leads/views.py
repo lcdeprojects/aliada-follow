@@ -8,25 +8,19 @@ import json
 from .models import Lead, StatusHistory, Message
 
 def lead_dashboard(request):
-    leads = Lead.objects.filter(is_active=True)
+    leads = Lead.objects.filter(is_active=True).prefetch_related('messages')
     
-    # Group leads by their status
-    grouped_leads = {
-        'atendimento': leads.filter(status='atendimento'),
-        'aguardando_decisao': leads.filter(status='aguardando_decisao'),
-        'agendado': leads.filter(status='agendado'),
-        'perdido': leads.filter(status='perdido'),
-        'reativacao': leads.filter(status='reativacao'),
-    }
-
-    # Count of leads in each column
-    counts = {k: v.count() for k, v in grouped_leads.items()}
+    count_human = leads.filter(handled_by='human').count()
+    count_ai = leads.filter(handled_by='ai').count()
+    count_total = leads.count()
     
     status_choices = Lead.STATUS_CHOICES
     
     context = {
-        'grouped_leads': grouped_leads,
-        'counts': counts,
+        'leads': leads,
+        'count_human': count_human,
+        'count_ai': count_ai,
+        'count_total': count_total,
         'status_choices': status_choices,
     }
     return render(request, 'leads/dashboard.html', context)
@@ -43,21 +37,20 @@ def update_lead_status(request):
 
         lead_id = data.get('lead_id')
         new_status = data.get('status')
+        handled_by = data.get('handled_by')
         
-        if not lead_id or not new_status:
-            return JsonResponse({'success': False, 'error': 'Parâmetros ausentes.'}, status=400)
+        if not lead_id:
+            return JsonResponse({'success': False, 'error': 'ID do lead ausente.'}, status=400)
             
         lead = Lead.objects.get(id=lead_id)
-        old_status = lead.status
         
-        if old_status != new_status:
-            # Update Lead and reset follow-up tracking
+        updated = False
+        if new_status and lead.status != new_status:
+            old_status = lead.status
             lead.status = new_status
             lead.followup_stage = 0
             lead.last_followup_at = None
-            lead.save()
             
-            # Log history
             changed_by = request.user if request.user.is_authenticated else None
             StatusHistory.objects.create(
                 lead=lead,
@@ -65,6 +58,14 @@ def update_lead_status(request):
                 new_status=new_status,
                 changed_by=changed_by
             )
+            updated = True
+            
+        if handled_by and lead.handled_by != handled_by:
+            lead.handled_by = handled_by
+            updated = True
+            
+        if updated:
+            lead.save()
             
         return JsonResponse({'success': True})
     except Lead.DoesNotExist:
@@ -79,6 +80,7 @@ def add_lead(request):
             name = request.POST.get('name')
             phone = request.POST.get('phone')
             status = request.POST.get('status', 'atendimento')
+            handled_by = request.POST.get('handled_by', 'human')
             is_active = request.POST.get('is_active', True)
             
             if name and phone:
@@ -88,12 +90,13 @@ def add_lead(request):
                 # Get or create lead by phone number
                 lead, created = Lead.objects.get_or_create(
                     phone=clean_phone,
-                    defaults={'name': name, 'status': status}
+                    defaults={'name': name, 'status': status, 'handled_by': handled_by}
                 )
                 
                 if not created:
                     # If lead already exists, just update name and status
                     lead.name = name
+                    lead.handled_by = handled_by
                     old_status = lead.status
                     if old_status != status:
                         lead.status = status

@@ -25,6 +25,17 @@ class Lead(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Última Atualização")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
     
+    HANDLED_CHOICES = [
+        ('ai', '🤖 Inteligência Artificial'),
+        ('human', '👤 Atendente Humano'),
+    ]
+    handled_by = models.CharField(
+        max_length=20, 
+        choices=HANDLED_CHOICES, 
+        default='ai',
+        verbose_name="Atendido por"
+    )
+    
     # Colunas de controle contra duplicidade de follow-ups
     followup_stage = models.IntegerField(default=0, verbose_name="Estágio de Follow-Up")
     last_followup_at = models.DateTimeField(null=True, blank=True, verbose_name="Último Follow-Up em")
