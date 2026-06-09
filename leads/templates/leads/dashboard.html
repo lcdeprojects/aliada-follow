@@ -1,0 +1,529 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Leads - Clínica Médica</title>
+    <link rel="stylesheet" href="{% static 'leads/css/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <header>
+        <h1><i class="fa-solid fa-house-medical"></i> Aliada Clínica — Gestão de Leads</h1>
+        <button class="btn-primary" onclick="openModal('addLeadModal')">
+            <i class="fa-solid fa-plus"></i> Novo Paciente
+        </button>
+    </header>
+
+    <main class="board">
+        <!-- Coluna: Em Atendimento -->
+        <div class="column col-atendimento" data-status="atendimento" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
+            <div class="column-header">
+                <div class="column-title-wrapper">
+                    <span class="column-dot"></span>
+                    <span class="column-title">Em Atendimento</span>
+                </div>
+                <span class="column-count" id="count-atendimento">{{ counts.atendimento }}</span>
+            </div>
+            <div class="lead-list" id="list-atendimento">
+                {% for lead in grouped_leads.atendimento %}
+                    {% include 'leads/includes/lead_card.html' with lead=lead %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Coluna: Aguardando Decisão -->
+        <div class="column col-aguardando_decisao" data-status="aguardando_decisao" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
+            <div class="column-header">
+                <div class="column-title-wrapper">
+                    <span class="column-dot"></span>
+                    <span class="column-title">Aguardando Decisão</span>
+                </div>
+                <span class="column-count" id="count-aguardando_decisao">{{ counts.aguardando_decisao }}</span>
+            </div>
+            <div class="lead-list" id="list-aguardando_decisao">
+                {% for lead in grouped_leads.aguardando_decisao %}
+                    {% include 'leads/includes/lead_card.html' with lead=lead %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Coluna: Agendado -->
+        <div class="column col-agendado" data-status="agendado" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
+            <div class="column-header">
+                <div class="column-title-wrapper">
+                    <span class="column-dot"></span>
+                    <span class="column-title">Agendado</span>
+                </div>
+                <span class="column-count" id="count-agendado">{{ counts.agendado }}</span>
+            </div>
+            <div class="lead-list" id="list-agendado">
+                {% for lead in grouped_leads.agendado %}
+                    {% include 'leads/includes/lead_card.html' with lead=lead %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Coluna: Perdido -->
+        <div class="column col-perdido" data-status="perdido" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
+            <div class="column-header">
+                <div class="column-title-wrapper">
+                    <span class="column-dot"></span>
+                    <span class="column-title">Perdido</span>
+                </div>
+                <span class="column-count" id="count-perdido">{{ counts.perdido }}</span>
+            </div>
+            <div class="lead-list" id="list-perdido">
+                {% for lead in grouped_leads.perdido %}
+                    {% include 'leads/includes/lead_card.html' with lead=lead %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Coluna: Reativação -->
+        <div class="column col-reativacao" data-status="reativacao" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
+            <div class="column-header">
+                <div class="column-title-wrapper">
+                    <span class="column-dot"></span>
+                    <span class="column-title">Reativação</span>
+                </div>
+                <span class="column-count" id="count-reativacao">{{ counts.reativacao }}</span>
+            </div>
+            <div class="lead-list" id="list-reativacao">
+                {% for lead in grouped_leads.reativacao %}
+                    {% include 'leads/includes/lead_card.html' with lead=lead %}
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: Adicionar Paciente -->
+    <div id="addLeadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Cadastrar Novo Paciente (Lead)</h3>
+                <button class="close-btn" onclick="closeModal('addLeadModal')">&times;</button>
+            </div>
+            <form action="{% url 'add_lead' %}" method="POST">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="name">Nome Completo</label>
+                    <input type="text" id="name" name="name" class="form-control" placeholder="Ex: João Silva" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">WhatsApp / Telefone</label>
+                    <input type="text" id="phone" name="phone" class="form-control" placeholder="Ex: 11999998888 (Apenas números)" required>
+                </div>
+                <div class="form-group">
+                    <label for="status">Fase Inicial</label>
+                    <select id="status" name="status" class="form-control">
+                        {% for val, label in status_choices %}
+                            <option value="{{ val }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn-primary" style="background: rgba(255,255,255,0.05); color: var(--text-secondary); box-shadow: none;" onclick="closeModal('addLeadModal')">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar Paciente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Detalhes do Lead & Histórico de Mensagens -->
+    <div id="leadDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 650px;">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="modal-lead-name">Nome do Paciente</h3>
+                    <p id="modal-lead-phone" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.2rem;"><i class="fa-solid fa-phone"></i> 11999998888</p>
+                </div>
+                <button class="close-btn" onclick="closeModal('leadDetailModal')">&times;</button>
+            </div>
+            
+            <div style="margin-bottom: 1.5rem;">
+                <button class="btn-primary" style="background: rgba(194, 31, 31, 0.7); color: var(--text-secondary); box-shadow: none;" id="modal-delete-btn">Excluir Lead</button>
+                <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-secondary);">Histórico de Mensagens</h4>
+                <div id="modal-chat-history" style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 1rem; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem;">
+                    <!-- Preenchido via JS -->
+                </div>
+                
+                <!-- Simulador de Mensagens -->
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem; align-items: stretch;">
+                    <input type="text" id="modal-chat-input" class="form-control" style="flex: 1;" placeholder="Digite uma mensagem para simular...">
+                    <button class="btn-primary" style="background: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.1); box-shadow: none; white-space: nowrap; padding: 0.5rem 1rem;" onclick="simulateMessage('in')"><i class="fa-solid fa-arrow-down"></i> Receber</button>
+                    <button class="btn-primary" style="white-space: nowrap; padding: 0.5rem 1rem;" onclick="simulateMessage('out')"><i class="fa-solid fa-paper-plane"></i> Enviar</button>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+                <button class="btn-primary" style="background: rgba(255,255,255,0.05); color: var(--text-primary); box-shadow: none;" onclick="closeModal('leadDetailModal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSRF Token helper for JS -->
+    {% csrf_token %}
+
+    <script>
+        // CSRF Token Helper
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Modal Helpers
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('show');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        // HTML5 Drag & Drop Logic
+        function dragStart(event) {
+            event.dataTransfer.setData("text/plain", event.target.id);
+            event.target.classList.add("dragging");
+        }
+
+        function dragEnd(event) {
+            event.target.classList.remove("dragging");
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function dragEnter(event) {
+            event.preventDefault();
+            const column = event.target.closest('.column');
+            if (column) column.classList.add('dragover');
+        }
+
+        function dragLeave(event) {
+            const column = event.target.closest('.column');
+            if (column && !column.contains(event.relatedTarget)) {
+                column.classList.remove('dragover');
+            }
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const column = event.target.closest('.column');
+            if (!column) return;
+            
+            column.classList.remove('dragover');
+            
+            const cardId = event.dataTransfer.getData("text/plain");
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            
+            const list = column.querySelector('.lead-list');
+            const newStatus = column.getAttribute('data-status');
+            const leadId = card.getAttribute('data-id');
+            const oldStatus = card.getAttribute('data-status');
+            
+            if (oldStatus !== newStatus) {
+                // Instantly move DOM node (optimistic UI)
+                list.appendChild(card);
+                card.setAttribute('data-status', newStatus);
+                
+                // Update dropdown value if visible
+                const select = card.querySelector('.select-sm');
+                if (select) select.value = newStatus;
+                
+                // Recalculate counts
+                updateCounts();
+                
+                // Call API
+                updateLeadStatusOnServer(leadId, newStatus, card, oldStatus);
+            }
+        }
+
+        // Dropdown select change handler (accessibility fallback)
+        function changeStatusSelect(selectElement) {
+            const card = selectElement.closest('.lead-card');
+            const leadId = card.getAttribute('data-id');
+            const oldStatus = card.getAttribute('data-status');
+            const newStatus = selectElement.value;
+            
+            if (oldStatus !== newStatus) {
+                const targetList = document.getElementById(`list-${newStatus}`);
+                if (targetList) {
+                    targetList.appendChild(card);
+                    card.setAttribute('data-status', newStatus);
+                    updateCounts();
+                    updateLeadStatusOnServer(leadId, newStatus, card, oldStatus);
+                }
+            }
+        }
+
+        function updateCounts() {
+            document.querySelectorAll('.column').forEach(column => {
+                const status = column.getAttribute('data-status');
+                const count = column.querySelectorAll('.lead-card').length;
+                document.getElementById(`count-${status}`).innerText = count;
+            });
+        }
+
+        function updateLeadStatusOnServer(leadId, newStatus, card, oldStatus) {
+            // Get CSRF token directly from the hidden input rendered on the page
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            fetch("{% url 'update_lead_status' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    lead_id: leadId,
+                    status: newStatus
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Erro HTTP " + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!data.success) {
+                    // Rollback if failure
+                    alert("Erro ao salvar alteração: " + (data.error || "Erro desconhecido"));
+                    rollbackCard(card, oldStatus);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Erro ao alterar o status (verifique as credenciais ou permissões).");
+                rollbackCard(card, oldStatus);
+            });
+        }
+
+        function rollbackCard(card, oldStatus) {
+            const targetList = document.getElementById(`list-${oldStatus}`);
+            if (targetList) {
+                targetList.appendChild(card);
+                card.setAttribute('data-status', oldStatus);
+                const select = card.querySelector('.select-sm');
+                if (select) select.value = oldStatus;
+                updateCounts();
+            }
+        }
+
+        function deleteLead(leadId) {
+            if (!confirm("Tem certeza que deseja arquivar este paciente?")) {
+                return;
+            }
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            fetch(`/leads/delete/${leadId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Erro HTTP " + response.status);
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Remove the card from DOM
+                    const card = document.querySelector(`.lead-card[data-id="${leadId}"]`);
+                    if (card) {
+                        card.remove();
+                        updateCounts();
+                    }
+                    closeModal('leadDetailModal');
+                } else {
+                    alert("Erro ao arquivar: " + (data.error || "Erro desconhecido"));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Erro ao se conectar com o servidor.");
+            });
+        }
+
+        // Show Lead Details and Messages
+        function showLeadDetails(cardElement, event) {
+            // Prevent triggering modal when clicking the dropdown
+            if (event.target.tagName === 'SELECT' || event.target.tagName === 'OPTION') {
+                return;
+            }
+
+            const name = cardElement.querySelector('.lead-name').innerText;
+            const phone = cardElement.querySelector('.lead-phone').innerText.trim();
+            const rawMessages = cardElement.getAttribute('data-messages');
+            const leadId = cardElement.getAttribute('data-id');
+            
+            document.getElementById('modal-lead-name').innerText = name;
+            document.getElementById('modal-lead-phone').innerHTML = `<i class="fa-solid fa-phone"></i> ${phone}`;
+            document.getElementById('modal-delete-btn').setAttribute('onclick', `deleteLead(${leadId})`);
+            
+            const chatHistoryContainer = document.getElementById('modal-chat-history');
+            chatHistoryContainer.innerHTML = '';
+            
+            try {
+                const messages = JSON.parse(rawMessages);
+                if (messages && messages.length > 0) {
+                    messages.forEach(msg => {
+                        const bubble = document.createElement('div');
+                        const isOut = msg.direction === 'out';
+                        
+                        appendMessageBubble(msg, chatHistoryContainer);
+                    });
+                } else {
+                    chatHistoryContainer.innerHTML = '<p id="no-msg-text" style="color: var(--text-secondary); text-align: center; font-size: 0.85rem; padding: 1rem;">Nenhuma mensagem registrada para este lead.</p>';
+                }
+            } catch (e) {
+                console.error(e);
+                chatHistoryContainer.innerHTML = '<p id="no-msg-text" style="color: var(--text-secondary); text-align: center; font-size: 0.85rem; padding: 1rem;">Sem histórico de mensagens.</p>';
+            }
+            
+            openModal('leadDetailModal');
+            
+            // Auto scroll to bottom
+            setTimeout(() => {
+                chatHistoryContainer.scrollTop = chatHistoryContainer.scrollHeight;
+            }, 50);
+        }
+
+        function appendMessageBubble(msg, container) {
+            const isOut = msg.direction === 'out';
+            
+            const bubble = document.createElement('div');
+            bubble.style.padding = '0.75rem 1rem';
+            bubble.style.borderRadius = '12px';
+            bubble.style.maxWidth = '80%';
+            bubble.style.fontSize = '0.85rem';
+            bubble.style.lineHeight = '1.4';
+            
+            if (isOut) {
+                bubble.style.alignSelf = 'flex-end';
+                bubble.style.backgroundColor = 'rgba(6, 182, 212, 0.2)';
+                bubble.style.border = '1px solid rgba(6, 182, 212, 0.3)';
+                bubble.style.color = '#FFF';
+            } else {
+                bubble.style.alignSelf = 'flex-start';
+                bubble.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                bubble.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+                bubble.style.color = '#E5E7EB';
+            }
+            
+            const text = document.createElement('div');
+            text.innerText = msg.content;
+            
+            const time = document.createElement('div');
+            time.innerText = msg.created_at;
+            time.style.fontSize = '0.7rem';
+            time.style.color = 'var(--text-secondary)';
+            time.style.marginTop = '0.35rem';
+            time.style.textAlign = isOut ? 'right' : 'left';
+            
+            bubble.appendChild(text);
+            bubble.appendChild(time);
+            container.appendChild(bubble);
+        }
+
+        function simulateMessage(direction) {
+            const input = document.getElementById('modal-chat-input');
+            const content = input.value.trim();
+            if (!content) return;
+            
+            const deleteBtnAttr = document.getElementById('modal-delete-btn').getAttribute('onclick');
+            const match = deleteBtnAttr ? deleteBtnAttr.match(/\d+/) : null;
+            if (!match) return;
+            const leadId = match[0];
+            
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            fetch("{% url 'add_message' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    lead_id: leadId,
+                    content: content,
+                    direction: direction
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    input.value = '';
+                    const container = document.getElementById('modal-chat-history');
+                    const noMsg = document.getElementById('no-msg-text');
+                    if (noMsg) noMsg.remove();
+                    
+                    appendMessageBubble(data.message, container);
+                    
+                    setTimeout(() => {
+                        container.scrollTop = container.scrollHeight;
+                    }, 50);
+                    
+                    // Update data-messages array in the DOM
+                    const card = document.querySelector(`.lead-card[data-id="${leadId}"]`);
+                    if (card) {
+                        let msgs = [];
+                        try {
+                            msgs = JSON.parse(card.getAttribute('data-messages') || "[]");
+                        } catch(e) {}
+                        msgs.push(data.message);
+                        card.setAttribute('data-messages', JSON.stringify(msgs));
+                    }
+                } else {
+                    alert("Erro: " + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Erro ao enviar mensagem.");
+            });
+        }
+
+        // Auto-refresh the Kanban board dynamically every 30 seconds without full page reload
+        setInterval(() => {
+            // Do not refresh if the secretary is currently using any modal (adding a lead or viewing history)
+            if (document.querySelector('.modal.show')) {
+                return;
+            }
+            
+            fetch(window.location.href)
+                .then(response => {
+                    if (response.ok) return response.text();
+                    throw new Error('Falha no polling de atualização');
+                })
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newBoard = doc.querySelector('.board');
+                    if (newBoard) {
+                        document.querySelector('.board').innerHTML = newBoard.innerHTML;
+                        updateCounts();
+                    }
+                })
+                .catch(err => console.warn('Aviso de auto-atualização silencioso:', err));
+        }, 30000);
+    </script>
+</body>
+</html>

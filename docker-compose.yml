@@ -1,0 +1,30 @@
+services:
+  n8n:
+    image: n8nio/n8n # Uses the official n8n Docker image
+    restart: always # Ensures n8n restarts if it crashes or after a system reboot
+    ports:
+      - "5678:5678" # Maps your Mac's port 5678 to the container's port 5678
+    volumes:
+      # This is CRUCIAL for data persistence! It maps a hidden folder in your Mac's home directory
+      # to the n8n data directory inside the container. All your workflows, credentials, etc.,
+      # will be saved here and persist across container restarts or removals.
+      - ~/.n8n:/home/node/.n8n
+    environment:
+      # --- ESSENTIAL SECURITY & CONFIGURATION SETTINGS (EDIT THESE!) ---
+      - N8N_BASIC_AUTH_ACTIVE=true # Enables basic HTTP authentication for n8n access
+      - N8N_BASIC_AUTH_USER=admin # <--- CHANGE THIS to your desired username
+      - N8N_BASIC_AUTH_PASSWORD=123 # <--- CHANGE THIS to a VERY STRONG, UNIQUE PASSWORD
+      - N8N_ENCRYPTION_KEY=47cf4507-1e39-4006-9a2f-b0389ed254f8 # <--- CHANGE THIS to a long, complex, random key (e.g., 32+ chars). DO NOT LOSE THIS!
+      # ------------------------------------------------------------------
+
+      # General n8n network settings for local access
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_PATH=/
+      - NODE_ENV=development # Good for local debugging (more verbose logging)
+      - TZ=America/Sao_Paulo # <--- CHANGE THIS to your actual timezone (e.g., Europe/London, Asia/Tokyo)
+      # Database settings: SQLite is the default for convenience here.
+      # REMINDER: SQLite is NOT recommended for production environments.
+      # For production, you'd configure PostgreSQL or MySQL here.
+      # - DB_TYPE=sqlite (not strictly necessary as it's the default if no other DB is configured)

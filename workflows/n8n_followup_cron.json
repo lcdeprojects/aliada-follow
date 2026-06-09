@@ -1,0 +1,350 @@
+{
+  "name": "Evolution API - Cron de Follow-up e Reaquecimento",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger-id",
+      "name": "Cron Diário (9h)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT id, name, phone, status, last_interaction \nFROM leads_lead \nWHERE \n  (status = 'aguardando_decisao' AND last_interaction <= NOW() - INTERVAL '1 day' AND last_interaction >= NOW() - INTERVAL '6 day')\n  OR \n  (status = 'reativacao' AND last_interaction <= NOW() - INTERVAL '15 day')\nORDER BY last_interaction ASC\nLIMIT 50;"
+      },
+      "id": "get-inactive-leads",
+      "name": "Buscar Leads Inativos",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db-credential-id",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-leads-id",
+      "name": "Processar por Lead",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT direction, content, created_at FROM leads_message WHERE lead_id = {{ $json.id }} ORDER BY created_at DESC LIMIT 8;"
+      },
+      "id": "get-lead-history",
+      "name": "Buscar Histórico do Lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db-credential-id",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst reversed = [...items].reverse();\nlet formatted = \"\";\n\nfor (const msg of reversed) {\n  const sender = msg.json.direction === 'in' ? 'Paciente' : 'Clínica/IA';\n  formatted += `${sender}: ${msg.json.content}\\n`;\n}\n\nreturn { formattedChatHistory: formatted || \"Nenhuma mensagem anterior.\" };"
+      },
+      "id": "format-history-id",
+      "name": "Formatar Histórico",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.5
+        }
+      },
+      "id": "openai-model-cron-id",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        450
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credential-id",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Gere um follow-up para o paciente {{ $('Processar por Lead').item.json.name }} (Status atual: {{ $('Processar por Lead').item.json.status }}).\n\nHistórico Cronológico do Chat:\n{{ $json.formattedChatHistory }}",
+        "systemMessage": "=Você é o assistente virtual da Clínica Aliada. Seu objetivo é retomar o contato com pacientes que pararam de responder de forma sutil, empática e atenciosa.\n\nInstruções de Tom e Voz (MUITO IMPORTANTES):\n- Tom Calmo, Questionador, Entendedor e Empático.\n- Não pareça insistente nem pareça cobrança.\n- Faça perguntas abertas e demonstre que entende a rotina corrida do paciente.\n- Mantenha a mensagem curta (no máximo 2-3 linhas de texto).\n\nPara o follow-up, adapte sutilmente o seguinte template pronto, preenchendo o nome e mantendo a estrutura amigável:\n\nTEMPLATE_FOLLOWUP:\n\"Olá [Nome], tudo bem? Pensei em você hoje e passei para saber se conseguiu dar uma olhadinha no que conversamos antes. Sei que a rotina é corrida... Ficou alguma dúvida sobre o procedimento ou agendamento?\""
+      },
+      "id": "ai-followup-id",
+      "name": "IA Follow-Up",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sua-api-evolution.hostinger.com/message/sendText/{{ $('Processar por Lead').item.json.phone }}",
+        "sendHeaders": true,
+        "headersUi": {
+          "parameter": [
+            {
+              "name": "apikey",
+              "value": "sua-api-key-global-da-evolution-aqui"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Processar por Lead').item.json.phone }}\",\n  \"options\": {\n    \"delay\": 2000,\n    \"presence\": \"composing\"\n  },\n  \"textMessage\": {\n    \"text\": \"{{ $json.output }}\"\n  }\n}"
+      },
+      "id": "send-wa-followup",
+      "name": "Enviar WhatsApp Follow-Up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO leads_message (lead_id, direction, content, created_at) VALUES ({{ $('Processar por Lead').item.json.id }}, 'out', '{{ $('IA Follow-Up').item.json.output.replace(/'/g, \"''\") }}', NOW())"
+      },
+      "id": "save-followup-msg",
+      "name": "Salvar Mensagem de Follow-Up",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db-credential-id",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE leads_lead SET last_interaction = NOW() WHERE id = {{ $('Processar por Lead').item.json.id }};"
+      },
+      "id": "update-last-interaction",
+      "name": "Atualizar Data de Interação",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db-credential-id",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $('Processar por Lead').context.noItemsLeft }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-loop-end",
+      "name": "Fim do Loop?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Cron Diário (9h)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Leads Inativos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Leads Inativos": {
+      "main": [
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Leads": {
+      "main": [
+        [
+          {
+            "node": "Buscar Histórico do Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Histórico do Lead": {
+      "main": [
+        [
+          {
+            "node": "Formatar Histórico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Histórico": {
+      "main": [
+        [
+          {
+            "node": "IA Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "IA Follow-Up",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Salvar Mensagem de Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Mensagem de Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Atualizar Data de Interação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Data de Interação": {
+      "main": [
+        [
+          {
+            "node": "Fim do Loop?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fim do Loop?": {
+      "main": [
+        null,
+        [
+          {
+            "node": "Loop Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "followup-cron-flow",
+  "id": "followup-cron-flow",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

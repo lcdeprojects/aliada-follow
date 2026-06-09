@@ -1,0 +1,498 @@
+{
+  "name": "Evolution API - Receber Mensagem e Resposta IA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook",
+        "options": {}
+      },
+      "id": "webhook-node-id",
+      "name": "Webhook Evolution API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        150,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.body.data.messageType === 'audioMessage' || !!$json.body.data.message.audioMessage }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "is-audio-msg",
+      "name": "É mensagem de Áudio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        350,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sua-api-evolution.hostinger.com/chat/getBase64FromMediaMessage/{{ $('Webhook Evolution API').item.json.body.instance }}",
+        "sendHeaders": true,
+        "headersUi": {
+          "parameter": [
+            {
+              "name": "apikey",
+              "value": "sua-api-key-global-da-evolution-aqui"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": {\n    \"key\": {\n      \"id\": \"{{ $('Webhook Evolution API').item.json.body.data.key.id }}\"\n    }\n  },\n  \"convertToMp3\": true\n}"
+      },
+      "id": "download-audio-id",
+      "name": "Baixar Áudio da Evolution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        550,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item;\nconst base64Data = item.json.base64;\n\nreturn {\n  json: {\n    fileName: \"audio.mp3\"\n  },\n  binary: {\n    data: {\n      data: base64Data,\n      mimeType: \"audio/mp3\",\n      fileName: \"audio.mp3\"\n    }\n  }\n};"
+      },
+      "id": "base64-to-binary-id",
+      "name": "Converter Base64 para Binário",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "fileInputUi": "data",
+        "options": {
+          "language": "pt",
+          "temperature": 0.2
+        }
+      },
+      "id": "whisper-transcribe-id",
+      "name": "Transcrição Whisper OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        950,
+        180
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credential-id",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "phone",
+              "value": "={{ $('Webhook Evolution API').item.json.body.data.key.remoteJid.replace(/\\D/g, '') }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $('Webhook Evolution API').item.json.body.data.pushName || 'Paciente' }}"
+            },
+            {
+              "name": "messageText",
+              "value": "={{ $json.text }} (Transcrição de Áudio)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-audio-text-id",
+      "name": "Extrair Áudio Transcrito",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1150,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "phone",
+              "value": "={{ $json.body.data.key.remoteJid.replace(/\\D/g, '') }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $json.body.data.pushName || 'Paciente' }}"
+            },
+            {
+              "name": "messageText",
+              "value": "={{ $json.body.data.message.conversation || $json.body.data.message.extendedTextMessage.text || 'Mensagem sem texto' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-data-id",
+      "name": "Extrair Dados Texto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1150,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO leads_lead (name, phone, status, last_interaction, created_at, updated_at)\nVALUES ('{{ $json.name.replace(/'/g, \"''\") }}', '{{ $json.phone }}', 'atendimento', NOW(), NOW(), NOW())\nON CONFLICT (phone)\nDO UPDATE SET \n  name = EXCLUDED.name,\n  status = 'atendimento',\n  last_interaction = NOW(),\n  updated_at = NOW()\nRETURNING id, status;"
+      },
+      "id": "upsert-lead-db",
+      "name": "Upsert Lead no Supabase",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db-credential-id",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO leads_message (lead_id, direction, content, created_at) VALUES ({{ $json[0].id }}, 'in', '{{ $('is-audio-msg').item.json.body.data.messageType === 'audioMessage' ? $('Extrair Áudio Transcrito').item.json.messageText.replace(/'/g, \"''\") : $('Extrair Dados Texto').item.json.messageText.replace(/'/g, \"''\") }}', NOW()) RETURNING lead_id;"
+      },
+      "id": "save-incoming-msg",
+      "name": "Salvar Mensagem Recebida",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db-credential-id",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT direction, content FROM leads_message WHERE lead_id = {{ $json.lead_id }} ORDER BY created_at DESC LIMIT 8;"
+      },
+      "id": "get-chat-history",
+      "name": "Buscar Histórico",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db-credential-id",
+          "name": "Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst reversed = [...items].reverse();\nlet formatted = \"\";\n\nfor (const msg of reversed) {\n  const sender = msg.json.direction === 'in' ? 'Paciente' : 'Clínica/IA';\n  formatted += `${sender}: ${msg.json.content}\\n`;\n}\n\nreturn { formattedChatHistory: formatted || \"Nenhuma mensagem anterior.\" };"
+      },
+      "id": "format-history-id",
+      "name": "Formatar Histórico",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.5
+        }
+      },
+      "id": "openai-model-id",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        2260,
+        450
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credential-id",
+          "name": "OpenAI API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Paciente: {{ $('is-audio-msg').item.json.body.data.messageType === 'audioMessage' ? $('Extrair Áudio Transcrito').item.json.messageText : $('Extrair Dados Texto').item.json.messageText }}\n\nHistórico Cronológico do Chat:\n{{ $json.formattedChatHistory }}",
+        "systemMessage": "=Você é o assistente virtual da Clínica Aliada. Seu objetivo é conduzir o paciente ao agendamento de forma acolhedora.\n\nQuando responder, você deve preferencialmente basear-se nos seguintes TEMPLATES DE RESPOSTAS PRONTAS, adaptando-os apenas para preencher as lacunas do caso concreto (como nome do paciente, especialidade ou procedimento):\n\nTEMPLATE_SAUDACAO:\n\"Olá [Nome], tudo bem? Aqui é da Clínica Aliada. Como posso te ajudar hoje?\"\n\nTEMPLATE_VALORES:\n\"Em relação aos valores, a consulta com clínico geral é R$ 300 e com especialista é R$ 350. Você gostaria de agendar uma data?\"\n\nTEMPLATE_CONVENIO:\n\"Aceitamos os convênios Bradesco Saúde e SulAmérica para consultas. Para os demais planos, emitimos recibo para reembolso. Gostaria de verificar nossa disponibilidade?\"\n\nTEMPLATE_AGENDAMENTO:\n\"Perfeito! Podemos agendar. Nossos horários disponíveis são de segunda a sexta, das 8h às 18h. Qual o melhor dia e período para você?\"\n\nDIRETRIZES DE RESPOSTA:\n1. Se a pergunta do paciente se encaixar em um dos temas acima, use o respectivo TEMPLATE. Preencha as variáveis em colchetes [Nome] com as informações do paciente e remova os colchetes.\n2. Mantenha sempre um tom calmo, questionador e empático.\n3. Responda de forma extremamente curta (no máximo 3 linhas).\n4. Se a dúvida for complexa ou fora dos templates, responda de forma muito concisa sugerindo transferir para atendimento humano."
+      },
+      "id": "ai-agent-id",
+      "name": "IA Resposta",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [
+        2260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sua-api-evolution.hostinger.com/message/sendText/{{ $('is-audio-msg').item.json.body.data.key.remoteJid.replace(/\\D/g, '') }}",
+        "sendHeaders": true,
+        "headersUi": {
+          "parameter": [
+            {
+              "name": "apikey",
+              "value": "sua-api-key-global-da-evolution-aqui"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('is-audio-msg').item.json.body.data.key.remoteJid.replace(/\\D/g, '') }}\",\n  \"options\": {\n    \"delay\": 1200,\n    \"presence\": \"composing\"\n  },\n  \"textMessage\": {\n    \"text\": \"{{ $json.output }}\"\n  }\n}"
+      },
+      "id": "send-wa-message",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO leads_message (lead_id, direction, content, created_at) VALUES ({{ $('Salvar Mensagem Recebida').item.json.lead_id }}, 'out', '{{ $('IA Resposta').item.json.output.replace(/'/g, \"''\") }}', NOW())"
+      },
+      "id": "save-outgoing-msg",
+      "name": "Salvar Mensagem Enviada",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        2740,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "supabase-db-credential-id",
+          "name": "Supabase Postgres"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Evolution API": {
+      "main": [
+        [
+          {
+            "node": "is-audio-msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "is-audio-msg": {
+      "main": [
+        [
+          {
+            "node": "Baixar Áudio da Evolution",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extrair Dados Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar Áudio da Evolution": {
+      "main": [
+        [
+          {
+            "node": "Converter Base64 para Binário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter Base64 para Binário": {
+      "main": [
+        [
+          {
+            "node": "Transcrição Whisper OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrição Whisper OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Extrair Áudio Transcrito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Áudio Transcrito": {
+      "main": [
+        [
+          {
+            "node": "Upsert Lead no Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Dados Texto": {
+      "main": [
+        [
+          {
+            "node": "Upsert Lead no Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Lead no Supabase": {
+      "main": [
+        [
+          {
+            "node": "Salvar Mensagem Recebida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Mensagem Recebida": {
+      "main": [
+        [
+          {
+            "node": "Buscar Histórico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Histórico": {
+      "main": [
+        [
+          {
+            "node": "Formatar Histórico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Histórico": {
+      "main": [
+        [
+          {
+            "node": "IA Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "IA Resposta",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA Resposta": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Salvar Mensagem Enviada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "evolution-webhook-flow",
+  "id": "evolution-webhook-flow",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

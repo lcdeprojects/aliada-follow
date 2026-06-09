@@ -1,0 +1,9 @@
+.git
+.gitignore
+.venv
+db.sqlite3
+.agents
+__pycache__
+*.pyc
+staticfiles
+.env
