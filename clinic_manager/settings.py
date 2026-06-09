@@ -42,8 +42,9 @@ else:
         if host and host != '*':
             CSRF_TRUSTED_ORIGINS.append(f"https://{host}")
             CSRF_TRUSTED_ORIGINS.append(f"http://{host}")
-    # Always trust the current Easypanel domain
+    # Always trust the current Easypanel domains
     CSRF_TRUSTED_ORIGINS.append("https://n8n-wpp-aliada-follow.syzsf4.easypanel.host")
+    CSRF_TRUSTED_ORIGINS.append("https://n8n-wpp-aliada-fup.syzsf4.easypanel.host")
 
 
 
