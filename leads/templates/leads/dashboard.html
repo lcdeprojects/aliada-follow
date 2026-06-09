@@ -475,6 +475,7 @@
                         const card = document.getElementById(`lead-${l.id}`);
                         if (card) {
                             const oldMsgsStr = card.getAttribute('data-messages') || "[]";
+                            const oldMsgs = JSON.parse(oldMsgsStr);
                             const newMsgsStr = JSON.stringify(l.messages);
                             
                             // Check if status or handled_by changed outside
@@ -496,7 +497,8 @@
                                 }
                             }
                             
-                            if (oldMsgsStr !== newMsgsStr) {
+                            // Compare sizes to prevent string formatting issues from triggering a fake "update"
+                            if (oldMsgs.length !== l.messages.length) {
                                 card.setAttribute('data-messages', newMsgsStr);
                                 
                                 const preview = card.querySelector('.lead-preview');
@@ -512,6 +514,7 @@
                                 // Move card to top
                                 const container = document.getElementById('leads-container');
                                 if (container && card.parentElement === container) {
+                                    // Move before the first element
                                     container.insertBefore(card, container.firstChild);
                                 }
                             }
