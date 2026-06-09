@@ -166,6 +166,9 @@ def add_message(request):
             content=content
         )
         
+        cw_status = None
+        cw_error = None
+        
         # Enviar para Chatwoot API se for mensagem de saída (agente) e o lead tiver conversa vinculada
         if direction == 'out' and lead.chatwoot_conversation_id:
             cw_url = f"{settings.CHATWOOT_API_URL}/api/v1/accounts/{settings.CHATWOOT_ACCOUNT_ID}/conversations/{lead.chatwoot_conversation_id}/messages"
@@ -180,8 +183,13 @@ def add_message(request):
             }
             try:
                 # O timeout previne que o CRM trave se o Chatwoot demorar
-                requests.post(cw_url, headers=headers, json=payload, timeout=5)
+                response = requests.post(cw_url, headers=headers, json=payload, timeout=5)
+                cw_status = response.status_code
+                if not response.ok:
+                    cw_error = response.text
+                    print(f"Chatwoot recusou: {cw_status} - {cw_error}")
             except Exception as e:
+                cw_error = str(e)
                 print(f"Erro ao enviar para Chatwoot: {e}")
         
         from django.utils.timezone import localtime
@@ -191,6 +199,11 @@ def add_message(request):
                 'direction': msg.direction,
                 'content': msg.content,
                 'created_at': localtime(msg.created_at).strftime('%d/%m/%Y %H:%M')
+            },
+            'debug_chatwoot': {
+                'conversation_id': lead.chatwoot_conversation_id,
+                'status': cw_status,
+                'error': cw_error
             }
         })
     except Lead.DoesNotExist:
