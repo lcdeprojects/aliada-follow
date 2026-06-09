@@ -112,6 +112,42 @@ def toggle_potential(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+@require_POST
+def update_lead_name(request):
+    try:
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        lead_id = data.get('lead_id')
+        name = data.get('name')
+        
+        if not lead_id or not name:
+            return JsonResponse({'success': False, 'error': 'Parâmetros ausentes.'}, status=400)
+            
+        lead = Lead.objects.get(id=lead_id)
+        lead.name = name
+        lead.save()
+        
+        # Sincronizar nome com Chatwoot se o contato estiver linkado
+        if lead.chatwoot_contact_id:
+            cw_url = f"{settings.CHATWOOT_API_URL}/api/v1/accounts/{settings.CHATWOOT_ACCOUNT_ID}/contacts/{lead.chatwoot_contact_id}"
+            headers = {
+                "api_access_token": settings.CHATWOOT_API_TOKEN,
+                "Content-Type": "application/json"
+            }
+            try:
+                requests.put(cw_url, headers=headers, json={"name": name}, timeout=5)
+            except Exception as e:
+                print(f"Erro ao atualizar nome no Chatwoot: {e}")
+                
+        return JsonResponse({'success': True})
+    except Lead.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Lead não encontrado.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
 def add_lead(request):
     try:
         if request.method == 'POST':
@@ -341,6 +377,7 @@ def active_leads_json(request):
         from django.utils.timezone import localtime
         data.append({
             'id': lead.id,
+            'name': lead.name,
             'status': lead.status,
             'handled_by': lead.handled_by,
             'is_potential': lead.is_potential,

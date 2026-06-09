@@ -9,5 +9,6 @@ urlpatterns = [
     path('leads/message/add/', views.add_message, name='add_message'),
     path('api/leads/updates/', views.active_leads_json, name='active_leads_json'),
     path('api/leads/toggle-potential/', views.toggle_potential, name='toggle_potential'),
+    path('api/leads/update-name/', views.update_lead_name, name='update_lead_name'),
     path('webhook/chatwoot/', views.chatwoot_webhook, name='chatwoot_webhook'),
 ]

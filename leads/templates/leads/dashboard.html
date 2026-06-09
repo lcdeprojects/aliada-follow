@@ -109,7 +109,10 @@
             <div id="active-chat-state" style="display: none; height: 100%; flex-direction: column;">
                 <div class="chat-header">
                     <div class="chat-header-info">
-                        <h2 id="chat-lead-name">Nome</h2>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <h2 id="chat-lead-name">Nome</h2>
+                            <button onclick="editLeadName()" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; transition: color 0.2s; padding: 0 0.5rem;" onmouseover="this.style.color='#06B6D4'" onmouseout="this.style.color='var(--text-secondary)'" title="Editar Nome"><i class="fa-solid fa-pen"></i></button>
+                        </div>
                         <span id="chat-lead-phone"><i class="fa-brands fa-whatsapp"></i> Telefone</span>
                     </div>
                     <div class="chat-header-actions">
@@ -406,6 +409,40 @@
             });
         }
 
+        function editLeadName() {
+            if (!activeLeadId) return;
+            const currentName = document.getElementById('chat-lead-name').innerText;
+            const newName = prompt("Digite o novo nome do paciente:", currentName);
+            
+            if (newName && newName.trim() !== "" && newName !== currentName) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                const finalName = newName.trim();
+                
+                // Optimistic UI update
+                document.getElementById('chat-lead-name').innerText = finalName;
+                const card = document.getElementById(`lead-${activeLeadId}`);
+                if (card) {
+                    card.setAttribute('data-name', finalName);
+                    const nameDiv = card.querySelector('.lead-name');
+                    if (nameDiv) nameDiv.innerText = finalName;
+                }
+                
+                fetch("{% url 'update_lead_name' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ lead_id: activeLeadId, name: finalName })
+                }).then(r => r.json()).then(data => {
+                    if (!data.success) {
+                        alert("Erro ao renomear: " + data.error);
+                        window.location.reload();
+                    }
+                });
+            }
+        }
+
         // Add Message Simulation
         function handleEnter(e) {
             if (e.key === 'Enter') simulateMessage('out');
@@ -527,6 +564,16 @@
                             const oldStatus = card.getAttribute('data-status');
                             const oldHandled = card.getAttribute('data-handled');
                             const oldPotential = card.getAttribute('data-potential') === 'true';
+                            const oldName = card.getAttribute('data-name');
+                            
+                            if (oldName !== l.name) {
+                                card.setAttribute('data-name', l.name);
+                                const nameDiv = card.querySelector('.lead-name');
+                                if (nameDiv) nameDiv.innerText = l.name;
+                                if (activeLeadId == l.id) {
+                                    document.getElementById('chat-lead-name').innerText = l.name;
+                                }
+                            }
                             
                             if (oldStatus !== l.status || oldHandled !== l.handled_by || oldPotential !== l.is_potential) {
                                 card.setAttribute('data-status', l.status);
