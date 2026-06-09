@@ -164,3 +164,9 @@ STORAGES = {
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Chatwoot API Configurations
+CHATWOOT_API_URL = os.getenv('CHATWOOT_API_URL', 'https://n8n-wpp-chatwoot.syzsf4.easypanel.host')
+CHATWOOT_API_TOKEN = os.getenv('CHATWOOT_API_TOKEN', 'c8NHaaZDwjnjvLGeg1RRed1C')
+CHATWOOT_ACCOUNT_ID = os.getenv('CHATWOOT_ACCOUNT_ID', '1')
+CHATWOOT_INBOX_ID = os.getenv('CHATWOOT_INBOX_ID', 'VVrW3ZXBSyGZ1AB7ZPFnXwdQ')

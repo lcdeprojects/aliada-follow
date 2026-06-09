@@ -3,7 +3,10 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
 import json
+import requests
+import re
 
 from .models import Lead, StatusHistory, Message
 
@@ -150,6 +153,24 @@ def add_message(request):
             content=content
         )
         
+        # Enviar para Chatwoot API se for mensagem de saída (agente) e o lead tiver conversa vinculada
+        if direction == 'out' and lead.chatwoot_conversation_id:
+            cw_url = f"{settings.CHATWOOT_API_URL}/api/v1/accounts/{settings.CHATWOOT_ACCOUNT_ID}/conversations/{lead.chatwoot_conversation_id}/messages"
+            headers = {
+                "api_access_token": settings.CHATWOOT_API_TOKEN,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "content": content,
+                "message_type": "outgoing",
+                "private": False
+            }
+            try:
+                # O timeout previne que o CRM trave se o Chatwoot demorar
+                requests.post(cw_url, headers=headers, json=payload, timeout=5)
+            except Exception as e:
+                print(f"Erro ao enviar para Chatwoot: {e}")
+        
         from django.utils.timezone import localtime
         return JsonResponse({
             'success': True,
@@ -162,4 +183,66 @@ def add_message(request):
     except Lead.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Lead não encontrado.'}, status=404)
     except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_POST
+def chatwoot_webhook(request):
+    try:
+        payload = json.loads(request.body)
+        event = payload.get('event')
+        
+        if event == 'message_created':
+            message_type = payload.get('message_type') # 'incoming' (paciente) ou 'outgoing' (agente)
+            content = payload.get('content')
+            conversation = payload.get('conversation', {})
+            sender = payload.get('sender', {})
+            
+            conversation_id = conversation.get('id')
+            
+            # Tentar achar o telefone do remetente ou da conversa
+            phone_number = sender.get('phone_number')
+            if not phone_number and conversation.get('meta') and conversation['meta'].get('sender'):
+                phone_number = conversation['meta']['sender'].get('phone_number')
+                
+            if not phone_number:
+                return JsonResponse({'success': True, 'msg': 'Sem telefone ignorado'})
+                
+            # Limpar telefone
+            clean_phone = ''.join(filter(str.isdigit, str(phone_number)))
+            if not clean_phone:
+                return JsonResponse({'success': True})
+                
+            # Buscar ou criar Lead
+            lead, created = Lead.objects.get_or_create(
+                phone__endswith=clean_phone[-10:], # Busca aproximada caso venha com DDI
+                defaults={'name': sender.get('name', f'Contato {clean_phone}'), 'phone': clean_phone}
+            )
+            
+            # Atualizar IDs do Chatwoot no Lead
+            if lead.chatwoot_conversation_id != conversation_id:
+                lead.chatwoot_conversation_id = conversation_id
+                contact_id = sender.get('id') if sender.get('type') == 'contact' else None
+                if contact_id:
+                    lead.chatwoot_contact_id = contact_id
+                lead.save()
+                
+            # Salvar mensagem no nosso DB
+            # Se for message_type = template ou campaign, também é outgoing
+            direction = 'in' if message_type == 'incoming' else 'out'
+            
+            # Evitar duplicar caso o próprio CRM enviou e gerou webhook
+            if not Message.objects.filter(lead=lead, content=content, direction=direction).exists():
+                Message.objects.create(
+                    lead=lead,
+                    content=content,
+                    direction=direction
+                )
+                
+            # Se recebemos mensagem do paciente (in), mover para a IA (caso de automação externa) ou manter
+            # Isso pode ser ajustado conforme a regra de negócios
+            
+        return JsonResponse({'success': True})
+    except Exception as e:
+        print(f"Erro Webhook Chatwoot: {e}")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)

@@ -39,6 +39,10 @@ class Lead(models.Model):
     # Colunas de controle contra duplicidade de follow-ups
     followup_stage = models.IntegerField(default=0, verbose_name="Estágio de Follow-Up")
     last_followup_at = models.DateTimeField(null=True, blank=True, verbose_name="Último Follow-Up em")
+    
+    # Integração Chatwoot
+    chatwoot_contact_id = models.IntegerField(null=True, blank=True, verbose_name="Chatwoot Contact ID")
+    chatwoot_conversation_id = models.IntegerField(null=True, blank=True, verbose_name="Chatwoot Conversation ID")
 
     class Meta:
         ordering = ['-last_interaction']
