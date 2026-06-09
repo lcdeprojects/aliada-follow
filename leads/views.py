@@ -251,11 +251,22 @@ def chatwoot_webhook(request):
             # Definir nome final
             final_name = contact_name if contact_name else f'Contato {clean_phone}'
                 
-            # Buscar ou criar Lead
-            lead, created = Lead.objects.get_or_create(
-                phone__endswith=clean_phone[-10:], # Busca aproximada caso venha com DDI
-                defaults={'name': final_name, 'phone': clean_phone}
-            )
+            # Buscar Lead existente
+            lead = Lead.objects.filter(phone__endswith=clean_phone[-10:]).first()
+            
+            # Se for uma mensagem nossa (outgoing) para um contato que ainda NÃO existe no CRM, ignora a criação!
+            # Deixa para criar apenas quando o paciente responder (incoming), assim o WhatsApp nos envia o nome real do perfil dele.
+            if not lead and message_type == 'outgoing':
+                return JsonResponse({'success': True, 'msg': 'Ignorando criação de lead por envio ativo'})
+                
+            if not lead:
+                lead = Lead.objects.create(
+                    phone=clean_phone,
+                    name=final_name
+                )
+                created = True
+            else:
+                created = False
             
             # Atualizar IDs do Chatwoot no Lead
             if lead.chatwoot_conversation_id != conversation_id:
