@@ -24,6 +24,7 @@ class Lead(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data de Criação")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Última Atualização")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    is_potential = models.BooleanField(default=False, verbose_name="Lead Potencial")
     
     HANDLED_CHOICES = [
         ('ai', '🤖 Inteligência Artificial'),
