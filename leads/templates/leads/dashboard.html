@@ -463,10 +463,76 @@
             });
         }
 
+        // Add Polling for Real-Time Updates
+        function initPolling() {
+            setInterval(() => {
+                fetch('/api/leads/updates/')
+                .then(r => r.json())
+                .then(data => {
+                    let needsFilter = false;
+                    
+                    data.leads.forEach(l => {
+                        const card = document.getElementById(`lead-${l.id}`);
+                        if (card) {
+                            const oldMsgsStr = card.getAttribute('data-messages') || "[]";
+                            const newMsgsStr = JSON.stringify(l.messages);
+                            
+                            // Check if status or handled_by changed outside
+                            const oldStatus = card.getAttribute('data-status');
+                            const oldHandled = card.getAttribute('data-handled');
+                            
+                            if (oldStatus !== l.status || oldHandled !== l.handled_by) {
+                                card.setAttribute('data-status', l.status);
+                                card.setAttribute('data-handled', l.handled_by);
+                                needsFilter = true;
+                                
+                                // Update badges visually
+                                const topDiv = card.querySelector('.lead-item-top');
+                                const timeSpan = topDiv.querySelector('.lead-time') ? topDiv.querySelector('.lead-time').outerHTML : '';
+                                if(l.handled_by === 'ai') {
+                                    topDiv.innerHTML = `<span class="badge-handled badge-ai"><i class="fa-solid fa-robot"></i> IA</span> ${timeSpan}`;
+                                } else {
+                                    topDiv.innerHTML = `<span class="badge-handled badge-human"><i class="fa-solid fa-user"></i> Humano</span> ${timeSpan}`;
+                                }
+                            }
+                            
+                            if (oldMsgsStr !== newMsgsStr) {
+                                card.setAttribute('data-messages', newMsgsStr);
+                                
+                                const preview = card.querySelector('.lead-preview');
+                                if (preview) preview.innerText = l.last_preview;
+                                
+                                const timeSpan = card.querySelector('.lead-time');
+                                if (timeSpan) timeSpan.innerText = l.last_interaction;
+                                
+                                if (activeLeadId == l.id) {
+                                    renderChatHistory(l.messages);
+                                }
+                                
+                                // Move card to top
+                                const container = document.getElementById('leads-container');
+                                if (container && card.parentElement === container) {
+                                    container.insertBefore(card, container.firstChild);
+                                }
+                            }
+                        } else {
+                            // Se for um card totalmente novo e não está no DOM, vamos recarregar para desenhar
+                            // Isso evita ter que recriar o HTML todo aqui
+                            window.location.reload();
+                        }
+                    });
+                    
+                    if(needsFilter) applyFilter();
+                })
+                .catch(err => console.error('Erro no polling:', err));
+            }, 3000); // 3 segundos
+        }
+
         // Init
         document.addEventListener('DOMContentLoaded', () => {
             applyFilter();
             initDragAndDrop();
+            initPolling();
         });
     </script>
 </body>

@@ -284,3 +284,19 @@ def chatwoot_webhook(request):
     except Exception as e:
         print(f"Erro Webhook Chatwoot: {e}")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+def active_leads_json(request):
+    leads = Lead.objects.filter(is_active=True).prefetch_related('messages')
+    data = []
+    for lead in leads:
+        last_msg = lead.messages.all().last()
+        from django.utils.timezone import localtime
+        data.append({
+            'id': lead.id,
+            'status': lead.status,
+            'handled_by': lead.handled_by,
+            'last_preview': last_msg.content if last_msg else '',
+            'messages': json.loads(lead.messages_json()),
+            'last_interaction': localtime(lead.last_interaction).strftime('%d/%m %H:%M')
+        })
+    return JsonResponse({'leads': data})
