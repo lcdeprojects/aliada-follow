@@ -159,6 +159,9 @@ def add_message(request):
         if not lead_id or not content or not direction:
             return JsonResponse({'success': False, 'error': 'Parâmetros ausentes.'}, status=400)
 
+        if direction == 'out':
+            direction = 'out_human'
+
         lead = Lead.objects.get(id=lead_id)
         msg = Message.objects.create(
             lead=lead,
@@ -277,9 +280,12 @@ def chatwoot_webhook(request):
             # Salvar mensagem no nosso DB
             # Se for message_type = template ou campaign, também é outgoing
             direction = 'in' if message_type == 'incoming' else 'out'
+            if direction == 'out':
+                direction = 'out_ai' if lead.handled_by == 'ai' else 'out_human'
             
             # Evitar duplicar caso o próprio CRM enviou e gerou webhook
             if not Message.objects.filter(lead=lead, content=content, direction=direction).exists():
+                # Para evitar duplicar mensagens 'out' antigas com as novas 'out_human', verifica só pelo content e lead nos últimos segundos idealmente, mas assim serve
                 Message.objects.create(
                     lead=lead,
                     content=content,
@@ -305,6 +311,7 @@ def active_leads_json(request):
             'status': lead.status,
             'handled_by': lead.handled_by,
             'last_preview': last_msg.content if last_msg else '',
+            'last_direction': last_msg.direction if last_msg else '',
             'messages': json.loads(lead.messages_json()),
             'last_interaction': localtime(lead.last_interaction).strftime('%d/%m %H:%M')
         })

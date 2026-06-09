@@ -78,6 +78,7 @@
                     
                     {% if lead.last_message %}
                     <div class="lead-preview">
+                        {% if lead.last_message.direction == 'out_ai' %}<i class="fa-solid fa-robot" style="opacity: 0.7; font-size: 0.9em; margin-right: 2px;"></i>{% elif lead.last_message.direction == 'out_human' or lead.last_message.direction == 'out' %}<i class="fa-solid fa-user" style="opacity: 0.7; font-size: 0.9em; margin-right: 2px;"></i>{% endif %}
                         {{ lead.last_message.content }}
                     </div>
                     {% endif %}
@@ -274,12 +275,19 @@
             }
             
             messages.forEach(msg => {
-                const isOut = msg.direction === 'out';
+                const isOut = (msg.direction === 'out' || msg.direction === 'out_human' || msg.direction === 'out_ai');
                 const bubble = document.createElement('div');
                 bubble.className = isOut ? 'chat-bubble chat-out' : 'chat-bubble chat-in';
                 
+                let icon = '';
+                if (msg.direction === 'out_ai') {
+                    icon = '<i class="fa-solid fa-robot" style="opacity: 0.6; font-size: 0.85em; margin-right: 4px;" title="Enviado pela IA"></i>';
+                } else if (msg.direction === 'out_human' || msg.direction === 'out') {
+                    icon = '<i class="fa-solid fa-user" style="opacity: 0.6; font-size: 0.85em; margin-right: 4px;" title="Enviado por Humano"></i>';
+                }
+                
                 bubble.innerHTML = `
-                    <div class="chat-text">${msg.content}</div>
+                    <div class="chat-text">${icon}${msg.content}</div>
                     <div class="chat-time">${msg.created_at}</div>
                 `;
                 container.appendChild(bubble);
@@ -400,7 +408,7 @@
                     
                     // Update preview
                     const preview = card.querySelector('.lead-preview');
-                    if(preview) preview.innerText = data.message.content;
+                    if(preview) preview.innerHTML = '<i class="fa-solid fa-user" style="opacity: 0.7; font-size: 0.9em; margin-right: 2px;"></i>' + data.message.content;
                     
                     renderChatHistory(msgs);
                 } else {
@@ -502,7 +510,12 @@
                                 card.setAttribute('data-messages', newMsgsStr);
                                 
                                 const preview = card.querySelector('.lead-preview');
-                                if (preview) preview.innerText = l.last_preview;
+                                if (preview) {
+                                    let pIcon = '';
+                                    if (l.last_direction === 'out_ai') pIcon = '<i class="fa-solid fa-robot" style="opacity: 0.7; font-size: 0.9em; margin-right: 2px;"></i>';
+                                    else if (l.last_direction === 'out_human' || l.last_direction === 'out') pIcon = '<i class="fa-solid fa-user" style="opacity: 0.7; font-size: 0.9em; margin-right: 2px;"></i>';
+                                    preview.innerHTML = pIcon + l.last_preview;
+                                }
                                 
                                 const timeSpan = card.querySelector('.lead-time');
                                 if (timeSpan) timeSpan.innerText = l.last_interaction;

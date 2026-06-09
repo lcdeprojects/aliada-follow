@@ -71,7 +71,9 @@ class Lead(models.Model):
 class Message(models.Model):
     DIRECTION_CHOICES = [
         ('in', 'Recebida (Paciente)'),
-        ('out', 'Enviada (Clínica/IA)'),
+        ('out', 'Enviada (Antigo)'),
+        ('out_human', 'Enviada (Secretária)'),
+        ('out_ai', 'Enviada (IA)'),
     ]
 
     lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='messages', verbose_name="Lead")
