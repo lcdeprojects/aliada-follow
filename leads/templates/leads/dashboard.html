@@ -196,6 +196,7 @@
         // State
         let activeFilter = { type: 'handled_by', value: 'human' };
         let activeLeadId = null;
+        let updatingLeads = new Set(); // Previne conflito entre UI otimista e Polling
 
         // Apply filters
         function applyFilter() {
@@ -313,6 +314,8 @@
         function updateServer(payload) {
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             
+            if (payload.lead_id) updatingLeads.add(parseInt(payload.lead_id));
+            
             return fetch("{% url 'update_lead_status' %}", {
                 method: 'POST',
                 headers: {
@@ -320,7 +323,9 @@
                     'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify(payload)
-            }).then(r => r.json());
+            }).then(r => r.json()).finally(() => {
+                if (payload.lead_id) updatingLeads.delete(parseInt(payload.lead_id));
+            });
         }
 
         function changeStatus() {
@@ -389,6 +394,7 @@
             
             // Otimista
             btn.classList.toggle('active');
+            updatingLeads.add(parseInt(leadId));
             
             const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             fetch("{% url 'toggle_potential' %}", {
@@ -406,7 +412,7 @@
                     const card = document.getElementById(`lead-${leadId}`);
                     card.setAttribute('data-potential', data.is_potential);
                 }
-            });
+            }).finally(() => updatingLeads.delete(parseInt(leadId)));
         }
 
         function editLeadName() {
@@ -427,6 +433,7 @@
                     if (nameDiv) nameDiv.innerText = finalName;
                 }
                 
+                updatingLeads.add(parseInt(activeLeadId));
                 fetch("{% url 'update_lead_name' %}", {
                     method: 'POST',
                     headers: {
@@ -439,7 +446,7 @@
                         alert("Erro ao renomear: " + data.error);
                         window.location.reload();
                     }
-                });
+                }).finally(() => updatingLeads.delete(parseInt(activeLeadId)));
             }
         }
 
@@ -554,6 +561,8 @@
                     let needsFilter = false;
                     
                     data.leads.forEach(l => {
+                        if (updatingLeads.has(l.id)) return; // Evitar flicker visual durante updates otimistas
+                        
                         const card = document.getElementById(`lead-${l.id}`);
                         if (card) {
                             const oldMsgsStr = card.getAttribute('data-messages') || "[]";
