@@ -210,6 +210,16 @@ h1 i {
     box-shadow: inset 4px 0 0 var(--color-reativacao);
 }
 
+.lead-item.unread-msg {
+    border-color: rgba(16, 185, 129, 0.6);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.lead-item.unread-msg .lead-preview {
+    color: #10B981;
+    font-weight: 500;
+}
+
 .lead-item-top {
     display: flex;
     justify-content: space-between;

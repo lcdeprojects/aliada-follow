@@ -54,7 +54,7 @@
             </div>
             <div class="leads-scroll" id="leads-container">
                 {% for lead in leads %}
-                <div class="lead-item" 
+                <div class="lead-item {% if lead.last_message and lead.last_message.direction == 'in' %}unread-msg{% endif %}" 
                      id="lead-{{ lead.id }}"
                      data-id="{{ lead.id }}"
                      data-status="{{ lead.status }}"
@@ -406,6 +406,9 @@
                     msgs.push(data.message);
                     card.setAttribute('data-messages', JSON.stringify(msgs));
                     
+                    // Remover destaque de não lido já que acabamos de responder
+                    card.classList.remove('unread-msg');
+                    
                     // Update preview
                     const preview = card.querySelector('.lead-preview');
                     if(preview) preview.innerHTML = '<i class="fa-solid fa-user" style="opacity: 0.7; font-size: 0.9em; margin-right: 2px;"></i>' + data.message.content;
@@ -515,6 +518,13 @@
                                     if (l.last_direction === 'out_ai') pIcon = '<i class="fa-solid fa-robot" style="opacity: 0.7; font-size: 0.9em; margin-right: 2px;"></i>';
                                     else if (l.last_direction === 'out_human' || l.last_direction === 'out') pIcon = '<i class="fa-solid fa-user" style="opacity: 0.7; font-size: 0.9em; margin-right: 2px;"></i>';
                                     preview.innerHTML = pIcon + l.last_preview;
+                                }
+                                
+                                // Adiciona destaque de cor se o lead enviou
+                                if (l.last_direction === 'in') {
+                                    card.classList.add('unread-msg');
+                                } else {
+                                    card.classList.remove('unread-msg');
                                 }
                                 
                                 const timeSpan = card.querySelector('.lead-time');
