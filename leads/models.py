@@ -32,7 +32,7 @@ class Lead(models.Model):
     handled_by = models.CharField(
         max_length=20, 
         choices=HANDLED_CHOICES, 
-        default='ai',
+        default='human',
         verbose_name="Atendido por"
     )
     

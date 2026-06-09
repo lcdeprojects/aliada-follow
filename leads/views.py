@@ -67,6 +67,19 @@ def update_lead_status(request):
             lead.handled_by = handled_by
             updated = True
             
+            # Sincronizar label com o Chatwoot
+            if lead.chatwoot_conversation_id:
+                cw_url = f"{settings.CHATWOOT_API_URL}/api/v1/accounts/{settings.CHATWOOT_ACCOUNT_ID}/conversations/{lead.chatwoot_conversation_id}/labels"
+                headers = {
+                    "api_access_token": settings.CHATWOOT_API_TOKEN,
+                    "Content-Type": "application/json"
+                }
+                label_to_add = "atendimento_ia" if handled_by == "ai" else "atendimento_humano"
+                try:
+                    requests.post(cw_url, headers=headers, json={"labels": [label_to_add]}, timeout=5)
+                except Exception as e:
+                    print(f"Erro ao sincronizar labels: {e}")
+            
         if updated:
             lead.save()
             
@@ -226,6 +239,18 @@ def chatwoot_webhook(request):
                 if contact_id:
                     lead.chatwoot_contact_id = contact_id
                 lead.save()
+                
+            # Se for um Lead novo, garantir que a etiqueta no Chatwoot fique como "atendimento_humano"
+            if created and conversation_id:
+                cw_url = f"{settings.CHATWOOT_API_URL}/api/v1/accounts/{settings.CHATWOOT_ACCOUNT_ID}/conversations/{conversation_id}/labels"
+                headers = {
+                    "api_access_token": settings.CHATWOOT_API_TOKEN,
+                    "Content-Type": "application/json"
+                }
+                try:
+                    requests.post(cw_url, headers=headers, json={"labels": ["atendimento_humano"]}, timeout=5)
+                except Exception as e:
+                    pass
                 
             # Salvar mensagem no nosso DB
             # Se for message_type = template ou campaign, também é outgoing

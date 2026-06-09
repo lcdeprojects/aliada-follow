@@ -1,0 +1,182 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatwoot-ai-webhook",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Webhook do Chatwoot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json[\"body\"][\"event\"]}}",
+              "value2": "message_created"
+            },
+            {
+              "value1": "={{$json[\"body\"][\"message_type\"]}}",
+              "value2": "incoming"
+            }
+          ]
+        }
+      },
+      "id": "2",
+      "name": "É mensagem de paciente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [350, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://n8n-wpp-chatwoot.syzsf4.easypanel.host/api/v1/accounts/1/conversations/{{$node[\"Webhook do Chatwoot\"].json[\"body\"][\"conversation\"][\"id\"]}}/labels",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "c8NHaaZDwjnjvLGeg1RRed1C"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3",
+      "name": "Checar Etiquetas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [600, 280]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{JSON.stringify($json.payload)}}",
+              "value2": "atendimento_ia",
+              "operation": "contains"
+            }
+          ]
+        }
+      },
+      "id": "4",
+      "name": "IA Assumiu a Conversa?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 280]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "Você é a assistente virtual inteligente da Aliada Clínica. Responda de forma gentil, curta e direta as dúvidas do paciente."
+            },
+            {
+              "role": "user",
+              "content": "={{$node[\"Webhook do Chatwoot\"].json[\"body\"][\"content\"]}}"
+            }
+          ]
+        }
+      },
+      "id": "5",
+      "name": "ChatGPT OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1100, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://n8n-wpp-chatwoot.syzsf4.easypanel.host/api/v1/accounts/1/conversations/{{$node[\"Webhook do Chatwoot\"].json[\"body\"][\"conversation\"][\"id\"]}}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "c8NHaaZDwjnjvLGeg1RRed1C"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"content\": \"{{$json[\"message\"][\"content\"]}}\",\n  \"message_type\": \"outgoing\"\n}",
+        "options": {}
+      },
+      "id": "6",
+      "name": "Responder no Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1350, 260]
+    }
+  ],
+  "connections": {
+    "Webhook do Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "É mensagem de paciente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É mensagem de paciente?": {
+      "main": [
+        [
+          {
+            "node": "Checar Etiquetas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checar Etiquetas": {
+      "main": [
+        [
+          {
+            "node": "IA Assumiu a Conversa?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA Assumiu a Conversa?": {
+      "main": [
+        [
+          {
+            "node": "ChatGPT OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ChatGPT OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Responder no Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
