@@ -231,7 +231,7 @@ def add_message(request):
         cw_error = None
         
         # Enviar para Chatwoot API se for mensagem de saída (agente) e o lead tiver conversa vinculada
-        if direction == 'out' and lead.chatwoot_conversation_id:
+        if direction.startswith('out') and lead.chatwoot_conversation_id:
             cw_url = f"{settings.CHATWOOT_API_URL}/api/v1/accounts/{settings.CHATWOOT_ACCOUNT_ID}/conversations/{lead.chatwoot_conversation_id}/messages"
             headers = {
                 "api_access_token": settings.CHATWOOT_API_TOKEN,
