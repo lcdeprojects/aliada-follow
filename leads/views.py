@@ -15,6 +15,9 @@ def lead_dashboard(request):
     
     count_human = leads.filter(handled_by='human').count()
     count_ai = leads.filter(handled_by='ai').count()
+    count_follow_up_1 = leads.filter(followup_stage='follow_up_1').count()
+    count_follow_up_2 = leads.filter(followup_stage='follow_up_2').count()
+    count_follow_up_3 = leads.filter(followup_stage='follow_up_3').count()
     count_total = leads.count()
     
     status_choices = Lead.STATUS_CHOICES
@@ -382,8 +385,21 @@ def chatwoot_webhook(request):
                     direction=direction
                 )
                 
-            # Se recebemos mensagem do paciente (in), mover para a IA (caso de automação externa) ou manter
-            # Isso pode ser ajustado conforme a regra de negócios
+            # Se recebemos mensagem do paciente (in), mudar para atendimento humano
+            if message_type == 'incoming' and lead.handled_by != 'human':
+                lead.handled_by = 'human'
+                lead.status = 'atendimento'
+                lead.save()
+                
+                if lead.chatwoot_conversation_id:
+                    cw_label_url = f"{settings.CHATWOOT_API_URL}/api/v1/accounts/{settings.CHATWOOT_ACCOUNT_ID}/conversations/{lead.chatwoot_conversation_id}/labels"
+                    try:
+                        requests.post(cw_label_url, headers={
+                            "api_access_token": settings.CHATWOOT_API_TOKEN,
+                            "Content-Type": "application/json"
+                        }, json={"labels": ["atendimento_humano", "atendimento"]}, timeout=5)
+                    except Exception as e:
+                        print(f"Erro ao atualizar label para humano no webhook: {e}")
             
         return JsonResponse({'success': True})
     except Exception as e:
