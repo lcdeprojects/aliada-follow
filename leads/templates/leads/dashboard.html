@@ -202,13 +202,19 @@
         function applyFilter() {
             const items = document.querySelectorAll('.lead-item');
             let visibleCount = 0;
+            let humanCount = 0;
+            let aiCount = 0;
             
             items.forEach(item => {
+                const handled = item.getAttribute('data-handled');
+                if (handled === 'human') humanCount++;
+                if (handled === 'ai') aiCount++;
+                
                 let show = false;
                 if (activeFilter.type === 'all') {
                     show = true;
                 } else if (activeFilter.type === 'handled_by') {
-                    show = item.getAttribute('data-handled') === activeFilter.value;
+                    show = handled === activeFilter.value;
                 } else if (activeFilter.type === 'status') {
                     show = item.getAttribute('data-status') === activeFilter.value;
                 }
@@ -220,6 +226,15 @@
                     item.style.display = 'none';
                 }
             });
+            
+            // Atualiza os contadores na sidebar dinamicamente
+            const humanBadge = document.querySelector('.filter-item[data-value="human"] .badge');
+            const aiBadge = document.querySelector('.filter-item[data-value="ai"] .badge');
+            const allBadge = document.querySelector('.filter-item[data-value="all"] .badge');
+            
+            if (humanBadge) humanBadge.innerText = humanCount;
+            if (aiBadge) aiBadge.innerText = aiCount;
+            if (allBadge) allBadge.innerText = items.length;
             
             const msg = document.getElementById('no-leads-msg');
             msg.style.display = visibleCount === 0 ? 'block' : 'none';
@@ -364,16 +379,7 @@
                 topDiv.innerHTML = `<span class="badge-handled badge-human"><i class="fa-solid fa-user"></i> Humano</span> ${timeSpan}`;
             }
             
-            // Update Sidebar Badges
-            const humanBadge = document.querySelector('.filter-item[data-value="human"] .badge');
-            const aiBadge = document.querySelector('.filter-item[data-value="ai"] .badge');
-            if (newHandled === 'human') {
-                humanBadge.innerText = parseInt(humanBadge.innerText) + 1;
-                aiBadge.innerText = Math.max(0, parseInt(aiBadge.innerText) - 1);
-            } else {
-                aiBadge.innerText = parseInt(aiBadge.innerText) + 1;
-                humanBadge.innerText = Math.max(0, parseInt(humanBadge.innerText) - 1);
-            }
+            // Sidebar badges serão atualizados dinamicamente pelo applyFilter()
             
             // Re-apply filter and refresh right pane button
             selectLead(card);
