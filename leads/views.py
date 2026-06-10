@@ -230,7 +230,7 @@ def add_message(request):
         # Mudar automaticamente para humano se o CRM enviar mensagem
         if direction.startswith('out') and lead.handled_by != 'human':
             lead.handled_by = 'human'
-            lead.status = 'atendimento_em_andamento'
+            lead.status = 'atendimento'
             lead.save()
             
             if lead.chatwoot_conversation_id:
@@ -239,7 +239,7 @@ def add_message(request):
                     requests.post(cw_label_url, headers={
                         "api_access_token": settings.CHATWOOT_API_TOKEN,
                         "Content-Type": "application/json"
-                    }, json={"labels": ["atendimento_humano"]}, timeout=5)
+                    }, json={"labels": ["atendimento_humano", "atendimento"]}, timeout=5)
                 except Exception as e:
                     print(f"Erro ao atualizar label pra humano: {e}")
         
