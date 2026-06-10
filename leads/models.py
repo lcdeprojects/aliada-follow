@@ -6,10 +6,10 @@ import json
 class Lead(models.Model):
     STATUS_CHOICES = [
         ('atendimento', 'Em Atendimento'),
-        ('aguardando_decisao', 'Aguardando Decisão'),
-        ('agendado', 'Agendado'),
-        ('perdido', 'Perdido'),
-        ('reativacao', 'Reativação'),
+        ('follow_up_1', 'Follow-Up 1'),
+        ('follow_up_2', 'Follow-Up 2'),
+        ('follow_up_3', 'Follow-Up 3'),
+        ('desativado', 'Desativado'),
     ]
 
     name = models.CharField(max_length=255, verbose_name="Nome do Paciente")
