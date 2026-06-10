@@ -281,7 +281,12 @@ def chatwoot_webhook(request):
         
         if event == 'message_created':
             message_type = payload.get('message_type') # 'incoming' (paciente) ou 'outgoing' (agente)
-            content = payload.get('content')
+            content = payload.get('content') or ""
+            attachments = payload.get('attachments', [])
+            
+            if attachments and not content.strip():
+                file_type = attachments[0].get('file_type', 'arquivo')
+                content = f"📎 [{file_type.capitalize()}]"
             conversation = payload.get('conversation', {})
             sender = payload.get('sender', {})
             

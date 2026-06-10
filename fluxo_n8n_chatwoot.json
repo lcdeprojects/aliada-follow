@@ -73,6 +73,104 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$node[\"Webhook do Chatwoot\"].json[\"body\"][\"attachments\"][0][\"file_type\"]}}",
+              "value2": "audio"
+            }
+          ]
+        }
+      },
+      "id": "10",
+      "name": "Tem Áudio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1100, 280]
+    },
+    {
+      "parameters": {
+        "url": "={{$node[\"Webhook do Chatwoot\"].json[\"body\"][\"attachments\"][0][\"data_url\"]}}",
+        "responseFormat": "file",
+        "options": {}
+      },
+      "id": "11",
+      "name": "Baixar Áudio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1350, 150]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer COLOQUE_SUA_CHAVE_AQUI"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "whisper-1"
+            }
+          ]
+        },
+        "sendBinaryData": true,
+        "binaryPropertyName": "data:file",
+        "options": {}
+      },
+      "id": "12",
+      "name": "Whisper (Transcrever)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1600, 150]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "prompt_text",
+              "value": "={{$json[\"text\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "13",
+      "name": "Set Texto (Áudio)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1850, 150]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "prompt_text",
+              "value": "={{$node[\"Webhook do Chatwoot\"].json[\"body\"][\"content\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "14",
+      "name": "Set Texto (Normal)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1350, 350]
+    },
+    {
+      "parameters": {
         "model": "gpt-4o-mini",
         "messages": {
           "messageValues": [
@@ -82,7 +180,7 @@
             },
             {
               "role": "user",
-              "content": "={{$node[\"Webhook do Chatwoot\"].json[\"body\"][\"content\"]}}"
+              "content": "={{$json[\"prompt_text\"]}}"
             }
           ]
         }
@@ -91,7 +189,7 @@
       "name": "ChatGPT OpenAI",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [1100, 260]
+      "position": [2150, 260]
     },
     {
       "parameters": {
@@ -119,7 +217,7 @@
       "name": "Responder no Chatwoot",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1350, 260]
+      "position": [2450, 260]
     }
   ],
   "connections": {
@@ -157,6 +255,68 @@
       ]
     },
     "IA Assumiu a Conversa?": {
+      "main": [
+        [
+          {
+            "node": "Tem Áudio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem Áudio?": {
+      "main": [
+        [
+          {
+            "node": "Baixar Áudio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Texto (Normal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baixar Áudio": {
+      "main": [
+        [
+          {
+            "node": "Whisper (Transcrever)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Whisper (Transcrever)": {
+      "main": [
+        [
+          {
+            "node": "Set Texto (Áudio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Texto (Áudio)": {
+      "main": [
+        [
+          {
+            "node": "ChatGPT OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Texto (Normal)": {
       "main": [
         [
           {
